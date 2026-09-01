@@ -89,7 +89,7 @@ public class HttpServerManager {
             obj.addProperty("y", Math.round(player.getY() * 100.0) / 100.0);
             obj.addProperty("z", Math.round(player.getZ() * 100.0) / 100.0);
             obj.addProperty("yaw", Math.round(player.getYRot() * 100.0) / 100.0);
-            obj.addProperty("dim", player.level().dimension().identifier().toString());
+            obj.addProperty("dim", BinaryTileManager.normalizeDim(player.level().dimension().identifier().toString()));
             if (config.showPlayerHealth) {
                 obj.addProperty("health", player.getHealth());
             }
@@ -99,12 +99,26 @@ public class HttpServerManager {
         sendJsonResponse(exchange, array.toString(), 1);
     }
 
+    private String getDimParam(HttpExchange exchange) {
+        String query = exchange.getRequestURI().getQuery();
+        if (query == null) return "overworld";
+        for (String param : query.split("&")) {
+            String[] pair = param.split("=");
+            if (pair.length == 2 && pair[0].equals("dim")) {
+                return BinaryTileManager.normalizeDim(pair[1]);
+            }
+        }
+        return "overworld";
+    }
+
     private void handleTilesIndex(HttpExchange exchange) throws IOException {
-        sendJsonResponse(exchange, tileManager.getExploredIndexJson(), 2);
+        String dim = getDimParam(exchange);
+        sendJsonResponse(exchange, tileManager.getExploredIndexJson(dim), 2);
     }
 
     private void handleRegionsIndex(HttpExchange exchange) throws IOException {
-        sendJsonResponse(exchange, tileManager.getExploredRegionsVersionJson(), 0);
+        String dim = getDimParam(exchange);
+        sendJsonResponse(exchange, tileManager.getExploredRegionsVersionJson(dim), 0);
     }
 
     private void handleTile(HttpExchange exchange) throws IOException {
@@ -115,12 +129,14 @@ public class HttpServerManager {
         }
 
         int cx = 0, cz = 0;
+        String dim = "overworld";
         try {
             for (String param : query.split("&")) {
                 String[] pair = param.split("=");
                 if (pair.length == 2) {
                     if (pair[0].equals("cx")) cx = Integer.parseInt(pair[1]);
                     else if (pair[0].equals("cz")) cz = Integer.parseInt(pair[1]);
+                    else if (pair[0].equals("dim")) dim = BinaryTileManager.normalizeDim(pair[1]);
                 }
             }
         } catch (Exception e) {
@@ -128,7 +144,7 @@ public class HttpServerManager {
             return;
         }
 
-        byte[] tileData = tileManager.getChunkTile(cx, cz);
+        byte[] tileData = tileManager.getChunkTile(dim, cx, cz);
         if (tileData != null && tileData.length == 256) {
             exchange.getResponseHeaders().set("Content-Type", "application/octet-stream");
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
@@ -151,6 +167,7 @@ public class HttpServerManager {
 
         int rx = 0, rz = 0;
         boolean hasVersion = false;
+        String dim = "overworld";
         try {
             for (String param : query.split("&")) {
                 String[] pair = param.split("=");
@@ -158,6 +175,7 @@ public class HttpServerManager {
                     if (pair[0].equals("rx")) rx = Integer.parseInt(pair[1]);
                     else if (pair[0].equals("rz")) rz = Integer.parseInt(pair[1]);
                     else if (pair[0].equals("v")) hasVersion = true;
+                    else if (pair[0].equals("dim")) dim = BinaryTileManager.normalizeDim(pair[1]);
                 }
             }
         } catch (Exception e) {
@@ -165,7 +183,7 @@ public class HttpServerManager {
             return;
         }
 
-        byte[] regionData = tileManager.getRegionTile(rx, rz);
+        byte[] regionData = tileManager.getRegionTile(dim, rx, rz);
         if (regionData != null && regionData.length == 262144) {
             exchange.getResponseHeaders().set("Content-Type", "application/octet-stream");
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");

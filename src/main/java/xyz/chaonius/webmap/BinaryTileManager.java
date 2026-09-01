@@ -1,8 +1,10 @@
 package xyz.chaonius.webmap;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -12,6 +14,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,69 +26,111 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BinaryTileManager {
     private final MinecraftServer server;
     private final ModConfig config;
-    private final File tilesDir;
-    private final Map<String, byte[]> tileMemoryCache = new ConcurrentHashMap<>();
-    private final Map<String, byte[]> regionMemoryCache = new ConcurrentHashMap<>();
-    private final Set<String> knownDiskTiles = ConcurrentHashMap.newKeySet();
-    private final Map<String, AtomicInteger> regionVersions = new ConcurrentHashMap<>();
+    private final File baseTilesDir;
+    private final Map<String, Map<String, byte[]>> tileMemoryCache = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, byte[]>> regionMemoryCache = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> knownDiskTiles = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, AtomicInteger>> regionVersions = new ConcurrentHashMap<>();
     private final ExecutorService asyncDiskWriter = Executors.newSingleThreadExecutor();
+
+    public static final String[] SUPPORTED_DIMS = new String[]{"overworld", "the_nether", "the_end"};
 
     public BinaryTileManager(MinecraftServer server, ModConfig config) {
         this.server = server;
         this.config = config;
-        this.tilesDir = new File(config.tileCacheDir);
-        if (!tilesDir.exists()) {
-            tilesDir.mkdirs();
+        this.baseTilesDir = new File(config.tileCacheDir);
+        if (!baseTilesDir.exists()) {
+            baseTilesDir.mkdirs();
         }
-        loadExistingTiles();
+
+        for (String dim : SUPPORTED_DIMS) {
+            tileMemoryCache.put(dim, new ConcurrentHashMap<>());
+            regionMemoryCache.put(dim, new ConcurrentHashMap<>());
+            knownDiskTiles.put(dim, ConcurrentHashMap.newKeySet());
+            regionVersions.put(dim, new ConcurrentHashMap<>());
+
+            File dimDir = new File(baseTilesDir, dim);
+            if (!dimDir.exists()) dimDir.mkdirs();
+        }
+
+        migrateAndLoadExistingTiles();
     }
 
     public void stop() {
         asyncDiskWriter.shutdown();
     }
 
-    private void loadExistingTiles() {
-        try {
-            File[] files = tilesDir.listFiles((dir, name) -> name.endsWith(".vmap"));
-            if (files != null) {
-                int count = 0;
-                for (File f : files) {
-                    if (f.length() == 256) {
-                        String key = f.getName().replace(".vmap", "");
-                        knownDiskTiles.add(key);
-                        String[] parts = key.split("_");
-                        if (parts.length == 2) {
-                            int cx = Integer.parseInt(parts[0]);
-                            int cz = Integer.parseInt(parts[1]);
-                            int rx = cx >> 5;
-                            int rz = cz >> 5;
-                            String regKey = rx + "_" + rz;
-                            regionVersions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
+    public static String normalizeDim(String raw) {
+        if (raw == null || raw.isEmpty()) return "overworld";
+        String lower = raw.toLowerCase();
+        if (lower.contains("nether")) return "the_nether";
+        if (lower.contains("end")) return "the_end";
+        if (lower.contains("overworld")) return "overworld";
+        return lower.replace("minecraft:", "").replace(":", "_");
+    }
 
-                            // Read disk tile into memory region buffer
-                            try (FileInputStream fis = new FileInputStream(f)) {
-                                byte[] chunkData = fis.readAllBytes();
-                                if (chunkData.length == 256) {
-                                    tileMemoryCache.put(key, chunkData);
-                                    updateRegionBuffer(rx, rz, cx, cz, chunkData);
-                                }
-                            } catch (Exception ignored) {}
+    private void migrateAndLoadExistingTiles() {
+        try {
+            // 1. Migrate legacy root tiles into "overworld" directory
+            File[] rootFiles = baseTilesDir.listFiles((dir, name) -> name.endsWith(".vmap"));
+            if (rootFiles != null && rootFiles.length > 0) {
+                File overworldDir = new File(baseTilesDir, "overworld");
+                overworldDir.mkdirs();
+                for (File f : rootFiles) {
+                    File dest = new File(overworldDir, f.getName());
+                    Files.move(f.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+                System.out.println("[VanillaWebMap] Migrated " + rootFiles.length + " legacy tiles into overworld cache.");
+            }
+
+            // 2. Load disk tiles for all dimensions
+            int totalTiles = 0;
+            for (String dim : SUPPORTED_DIMS) {
+                File dimDir = new File(baseTilesDir, dim);
+                File[] files = dimDir.listFiles((dir, name) -> name.endsWith(".vmap"));
+                if (files != null) {
+                    Map<String, byte[]> tileCache = tileMemoryCache.get(dim);
+                    Set<String> diskTiles = knownDiskTiles.get(dim);
+                    Map<String, AtomicInteger> versions = regionVersions.get(dim);
+
+                    for (File f : files) {
+                        if (f.length() == 256) {
+                            String key = f.getName().replace(".vmap", "");
+                            diskTiles.add(key);
+                            String[] parts = key.split("_");
+                            if (parts.length == 2) {
+                                int cx = Integer.parseInt(parts[0]);
+                                int cz = Integer.parseInt(parts[1]);
+                                int rx = cx >> 5;
+                                int rz = cz >> 5;
+                                String regKey = rx + "_" + rz;
+                                versions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
+
+                                try (FileInputStream fis = new FileInputStream(f)) {
+                                    byte[] chunkData = fis.readAllBytes();
+                                    if (chunkData.length == 256) {
+                                        tileCache.put(key, chunkData);
+                                        updateRegionBuffer(dim, rx, rz, cx, cz, chunkData);
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                            totalTiles++;
+                        } else {
+                            f.delete();
                         }
-                        count++;
-                    } else {
-                        f.delete();
                     }
                 }
-                System.out.println("[VanillaWebMap] Initialized with " + count + " valid .vmap tiles on disk across " + regionVersions.size() + " regions.");
             }
+            System.out.println("[VanillaWebMap] Initialized with " + totalTiles + " multi-dimension .vmap tiles across " + SUPPORTED_DIMS.length + " dimensions.");
         } catch (Exception e) {
-            System.err.println("[VanillaWebMap-ERROR] Error reading existing tiles from disk: " + e.getMessage());
+            System.err.println("[VanillaWebMap-ERROR] Error loading existing multi-dimension tiles: " + e.getMessage());
         }
     }
 
-    private void updateRegionBuffer(int rx, int rz, int cx, int cz, byte[] chunkData) {
+    private void updateRegionBuffer(String dim, int rx, int rz, int cx, int cz, byte[] chunkData) {
+        Map<String, byte[]> regionCache = regionMemoryCache.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
         String regKey = rx + "_" + rz;
-        byte[] regionBuf = regionMemoryCache.computeIfAbsent(regKey, k -> new byte[262144]);
+        byte[] regionBuf = regionCache.computeIfAbsent(regKey, k -> new byte[262144]);
 
         int lcx = (cx % 32 + 32) % 32;
         int lcz = (cz % 32 + 32) % 32;
@@ -99,56 +145,72 @@ public class BinaryTileManager {
         }
     }
 
-    public int getDiskTileCount() {
-        return knownDiskTiles.size();
+    public int getDiskTileCount(String dim) {
+        Set<String> set = knownDiskTiles.get(normalizeDim(dim));
+        return set != null ? set.size() : 0;
     }
 
-    public int getRamTileCount() {
-        return tileMemoryCache.size();
+    public int getTotalDiskTileCount() {
+        int count = 0;
+        for (Set<String> s : knownDiskTiles.values()) {
+            count += s.size();
+        }
+        return count;
     }
 
-    public int getRegionCount() {
-        return regionVersions.size();
+    public int getRamTileCount(String dim) {
+        Map<String, byte[]> m = tileMemoryCache.get(normalizeDim(dim));
+        return m != null ? m.size() : 0;
     }
 
     public void clearCache() {
-        tileMemoryCache.clear();
-        regionMemoryCache.clear();
-        knownDiskTiles.clear();
-        regionVersions.clear();
-        File[] files = tilesDir.listFiles((dir, name) -> name.endsWith(".vmap"));
-        if (files != null) {
-            for (File f : files) {
-                f.delete();
+        for (String dim : SUPPORTED_DIMS) {
+            Map<String, byte[]> tc = tileMemoryCache.get(dim);
+            if (tc != null) tc.clear();
+            Map<String, byte[]> rc = regionMemoryCache.get(dim);
+            if (rc != null) rc.clear();
+            Set<String> kd = knownDiskTiles.get(dim);
+            if (kd != null) kd.clear();
+            Map<String, AtomicInteger> rv = regionVersions.get(dim);
+            if (rv != null) rv.clear();
+
+            File dimDir = new File(baseTilesDir, dim);
+            File[] files = dimDir.listFiles((dir, name) -> name.endsWith(".vmap"));
+            if (files != null) {
+                for (File f : files) f.delete();
             }
         }
-        System.out.println("[VanillaWebMap] Cleared all cached .vmap tiles.");
+        System.out.println("[VanillaWebMap] Cleared all multi-dimension cached tiles.");
     }
 
-    // Called on natural chunk load on the main thread (takes 0.005ms)
-    public void onChunkLoad(LevelChunk chunk) {
-        if (chunk == null) return;
+    public void onChunkLoad(ServerLevel level, LevelChunk chunk) {
+        if (chunk == null || level == null) return;
+        String dim = normalizeDim(level.dimension().identifier().toString());
         int cx = chunk.getPos().x();
         int cz = chunk.getPos().z();
         String key = cx + "_" + cz;
 
-        if (knownDiskTiles.contains(key)) {
+        Set<String> diskTiles = knownDiskTiles.computeIfAbsent(dim, k -> ConcurrentHashMap.newKeySet());
+        if (diskTiles.contains(key)) {
             return;
         }
 
-        byte[] data = renderChunkToBytes(chunk, cx, cz);
+        byte[] data = renderChunkToBytes(level, chunk, cx, cz, dim);
         if (data != null) {
-            tileMemoryCache.put(key, data);
-            knownDiskTiles.add(key);
+            Map<String, byte[]> tileCache = tileMemoryCache.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
+            Map<String, AtomicInteger> versions = regionVersions.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
+
+            tileCache.put(key, data);
+            diskTiles.add(key);
 
             int rx = cx >> 5;
             int rz = cz >> 5;
             String regKey = rx + "_" + rz;
-            updateRegionBuffer(rx, rz, cx, cz, data);
-            regionVersions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
+            updateRegionBuffer(dim, rx, rz, cx, cz, data);
+            versions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
 
             asyncDiskWriter.submit(() -> {
-                File file = new File(tilesDir, key + ".vmap");
+                File file = new File(new File(baseTilesDir, dim), key + ".vmap");
                 try (FileOutputStream fos = new FileOutputStream(file)) {
                     fos.write(data);
                 } catch (IOException ignored) {}
@@ -158,6 +220,7 @@ public class BinaryTileManager {
 
     public int forceRenderRadius(ServerLevel level, int centerChunkX, int centerChunkZ, int radius) {
         if (level == null) return 0;
+        String dim = normalizeDim(level.dimension().identifier().toString());
         int count = 0;
 
         for (int cz = centerChunkZ - radius; cz <= centerChunkZ + radius; cz++) {
@@ -165,9 +228,9 @@ public class BinaryTileManager {
                 if (level.hasChunk(cx, cz)) {
                     LevelChunk chunk = level.getChunk(cx, cz);
                     if (chunk != null) {
-                        byte[] data = renderChunkToBytes(chunk, cx, cz);
+                        byte[] data = renderChunkToBytes(level, chunk, cx, cz, dim);
                         if (data != null) {
-                            saveChunkTile(cx, cz, data);
+                            saveChunkTile(dim, cx, cz, data);
                             count++;
                         }
                     }
@@ -177,22 +240,26 @@ public class BinaryTileManager {
         return count;
     }
 
-    // PURE MEMORY / DISK LOOKUP: NEVER touches Minecraft server Level from HTTP threads!
-    public byte[] getChunkTile(int cx, int cz) {
+    public byte[] getChunkTile(String dim, int cx, int cz) {
+        dim = normalizeDim(dim);
         String key = cx + "_" + cz;
-        byte[] cached = tileMemoryCache.get(key);
-        if (cached != null) return cached;
+        Map<String, byte[]> tileCache = tileMemoryCache.get(dim);
+        if (tileCache != null) {
+            byte[] cached = tileCache.get(key);
+            if (cached != null) return cached;
+        }
 
-        File file = new File(tilesDir, key + ".vmap");
+        File file = new File(new File(baseTilesDir, dim), key + ".vmap");
         if (file.exists() && file.length() == 256) {
             try (FileInputStream fis = new FileInputStream(file)) {
                 byte[] data = fis.readAllBytes();
                 if (data.length == 256) {
-                    tileMemoryCache.put(key, data);
-                    knownDiskTiles.add(key);
+                    if (tileCache != null) tileCache.put(key, data);
+                    Set<String> diskTiles = knownDiskTiles.get(dim);
+                    if (diskTiles != null) diskTiles.add(key);
                     int rx = cx >> 5;
                     int rz = cz >> 5;
-                    updateRegionBuffer(rx, rz, cx, cz, data);
+                    updateRegionBuffer(dim, rx, rz, cx, cz, data);
                     return data;
                 }
             } catch (IOException ignored) {}
@@ -200,19 +267,21 @@ public class BinaryTileManager {
         return null;
     }
 
-    // INSTANT RAM LOOKUP: Returns 256KB buffer in 0.0001ms with 0 disk I/O and 0 server locks!
-    public byte[] getRegionTile(int rx, int rz) {
+    public byte[] getRegionTile(String dim, int rx, int rz) {
+        dim = normalizeDim(dim);
         String regKey = rx + "_" + rz;
-        byte[] regionBuf = regionMemoryCache.get(regKey);
-        if (regionBuf != null) {
-            byte[] copy = new byte[262144];
-            synchronized (regionBuf) {
-                System.arraycopy(regionBuf, 0, copy, 0, 262144);
+        Map<String, byte[]> regionCache = regionMemoryCache.get(dim);
+        if (regionCache != null) {
+            byte[] regionBuf = regionCache.get(regKey);
+            if (regionBuf != null) {
+                byte[] copy = new byte[262144];
+                synchronized (regionBuf) {
+                    System.arraycopy(regionBuf, 0, copy, 0, 262144);
+                }
+                return copy;
             }
-            return copy;
         }
 
-        // Lazy load region from disk if not yet in RAM
         byte[] newRegion = new byte[262144];
         boolean hasData = false;
         int minCx = rx << 5;
@@ -222,7 +291,7 @@ public class BinaryTileManager {
             for (int lcx = 0; lcx < 32; lcx++) {
                 int cx = minCx + lcx;
                 int cz = minCz + lcz;
-                byte[] chunkData = getChunkTile(cx, cz);
+                byte[] chunkData = getChunkTile(dim, cx, cz);
                 if (chunkData != null && chunkData.length == 256) {
                     hasData = true;
                     for (int lz = 0; lz < 16; lz++) {
@@ -235,14 +304,14 @@ public class BinaryTileManager {
         }
 
         if (hasData) {
-            regionMemoryCache.put(regKey, newRegion);
+            if (regionCache != null) regionCache.put(regKey, newRegion);
             return newRegion;
         }
 
         return null;
     }
 
-    private byte[] renderChunkToBytes(LevelChunk chunk, int cx, int cz) {
+    private byte[] renderChunkToBytes(ServerLevel level, LevelChunk chunk, int cx, int cz, String dim) {
         if (chunk == null) return null;
 
         byte[] tile = new byte[256];
@@ -250,12 +319,12 @@ public class BinaryTileManager {
         int chunkBaseX = cx << 4;
         int chunkBaseZ = cz << 4;
 
-        ServerLevel level = server.overworld();
-        int minY = (level != null) ? level.getMinY() : -64;
-        int maxY = (level != null) ? level.getMaxY() : 320;
+        int minY = (level != null) ? level.getMinY() : (dim.equals("the_nether") ? 0 : -64);
+        int maxY = (level != null) ? level.getMaxY() : (dim.equals("the_nether") ? 128 : 320);
 
         int[] heights = new int[256];
         MapColor[] colors = new MapColor[256];
+        boolean isNether = dim.equals("the_nether");
 
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
@@ -264,15 +333,24 @@ public class BinaryTileManager {
                 int idx = lz * 16 + lx;
 
                 try {
-                    int topY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
-                    int startScanY = Math.max(topY, 150);
-                    startScanY = Math.min(maxY - 1, Math.max(minY + 1, startScanY));
+                    int startScanY;
+                    if (isNether) {
+                        // Peel bedrock ceiling: start scan below Y=126 and skip bedrock roof
+                        startScanY = 125;
+                    } else if (dim.equals("the_end")) {
+                        int topY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
+                        startScanY = Math.max(topY, 70);
+                    } else {
+                        int topY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
+                        startScanY = Math.max(topY, 150);
+                    }
 
+                    startScanY = Math.min(maxY - 1, Math.max(minY + 1, startScanY));
                     pos.set(worldX, startScanY, worldZ);
                     BlockState state = chunk.getBlockState(pos);
                     MapColor mapColor = state.getBlock().defaultMapColor();
 
-                    while (mapColor == MapColor.NONE && pos.getY() > minY) {
+                    while (pos.getY() > minY && (mapColor == MapColor.NONE || (isNether && pos.getY() >= 120 && state.is(Blocks.BEDROCK)))) {
                         pos.setY(pos.getY() - 1);
                         state = chunk.getBlockState(pos);
                         mapColor = state.getBlock().defaultMapColor();
@@ -315,47 +393,62 @@ public class BinaryTileManager {
         return tile;
     }
 
-    private void saveChunkTile(int cx, int cz, byte[] data) {
+    private void saveChunkTile(String dim, int cx, int cz, byte[] data) {
         if (data == null || data.length != 256) return;
+        dim = normalizeDim(dim);
         String key = cx + "_" + cz;
-        tileMemoryCache.put(key, data);
-        knownDiskTiles.add(key);
+
+        Map<String, byte[]> tileCache = tileMemoryCache.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
+        Set<String> diskTiles = knownDiskTiles.computeIfAbsent(dim, k -> ConcurrentHashMap.newKeySet());
+        Map<String, AtomicInteger> versions = regionVersions.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
+
+        tileCache.put(key, data);
+        diskTiles.add(key);
         int rx = cx >> 5;
         int rz = cz >> 5;
         String regKey = rx + "_" + rz;
-        updateRegionBuffer(rx, rz, cx, cz, data);
-        regionVersions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
+        updateRegionBuffer(dim, rx, rz, cx, cz, data);
+        versions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
 
+        final String finalDim = dim;
         asyncDiskWriter.submit(() -> {
-            File file = new File(tilesDir, key + ".vmap");
+            File file = new File(new File(baseTilesDir, finalDim), key + ".vmap");
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 fos.write(data);
             } catch (IOException ignored) {}
         });
     }
 
-    public String getExploredIndexJson() {
+    public String getExploredIndexJson(String dim) {
+        dim = normalizeDim(dim);
+        Set<String> set = knownDiskTiles.get(dim);
         StringBuilder sb = new StringBuilder("[");
-        boolean first = true;
-        for (String key : knownDiskTiles) {
-            String[] parts = key.split("_");
-            if (parts.length == 2) {
-                if (!first) sb.append(",");
-                first = false;
-                sb.append("[").append(parts[0]).append(",").append(parts[1]).append("]");
+        if (set != null) {
+            boolean first = true;
+            for (String key : set) {
+                String[] parts = key.split("_");
+                if (parts.length == 2) {
+                    if (!first) sb.append(",");
+                    first = false;
+                    sb.append("[").append(parts[0]).append(",").append(parts[1]).append("]");
+                }
             }
         }
         sb.append("]");
         return sb.toString();
     }
 
-    public String getExploredRegionsVersionJson() {
+    public String getExploredRegionsVersionJson(String dim) {
+        dim = normalizeDim(dim);
+        Map<String, AtomicInteger> versions = regionVersions.get(dim);
         StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<String, AtomicInteger> entry : regionVersions.entrySet()) {
-            if (!first) sb.append(",");
-            first = false;
-            sb.append("\"").append(entry.getKey()).append("\":").append(entry.getValue().get());
+        if (versions != null) {
+            boolean first = true;
+            for (Map.Entry<String, AtomicInteger> entry : versions.entrySet()) {
+                if (!first) sb.append(",");
+                first = false;
+                sb.append("\"").append(entry.getKey()).append("\":").append(entry.getValue().get());
+            }
         }
         sb.append("}");
         return sb.toString();

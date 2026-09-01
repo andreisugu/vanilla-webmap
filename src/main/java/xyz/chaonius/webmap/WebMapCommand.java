@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 public class WebMapCommand {
@@ -36,7 +37,7 @@ public class WebMapCommand {
                     VanillaWebMapMod mod = VanillaWebMapMod.getInstance();
                     if (mod != null && mod.getServerManager() != null) {
                         mod.getServerManager().getTileManager().clearCache();
-                        ctx.getSource().sendSuccess(() -> Component.literal("§a[VanillaWebMap] Tile cache cleared from memory and disk!"), true);
+                        ctx.getSource().sendSuccess(() -> Component.literal("§a[VanillaWebMap] Tile cache cleared across all dimensions!"), true);
                     } else {
                         ctx.getSource().sendFailure(Component.literal("§c[VanillaWebMap] Server manager not ready yet."));
                     }
@@ -59,8 +60,8 @@ public class WebMapCommand {
 
     private static void sendHelp(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal("§6=== §eVanillaWebMap Commands §6===\n" +
-                "§e/webmap status §7- View live HTTP, cache, and player stats\n" +
-                "§e/webmap render [radius] §7- Force render chunks around you / spawn\n" +
+                "§e/webmap status §7- View live HTTP, cache, and multi-dimension stats\n" +
+                "§e/webmap render [radius] §7- Force render chunks in current dimension\n" +
                 "§e/webmap reload §7- Reload vanilla-webmap.json configuration\n" +
                 "§e/webmap clear §7- Clear all cached map tiles"), false);
     }
@@ -75,8 +76,9 @@ public class WebMapCommand {
         HttpServerManager serverManager = mod.getServerManager();
         ModConfig config = mod.getConfig();
         BinaryTileManager mgr = serverManager.getTileManager();
-        int diskTiles = mgr.getDiskTileCount();
-        int ramTiles = mgr.getRamTileCount();
+        int overworldTiles = mgr.getDiskTileCount("overworld");
+        int netherTiles = mgr.getDiskTileCount("the_nether");
+        int endTiles = mgr.getDiskTileCount("the_end");
         int onlinePlayers = source.getServer().getPlayerCount();
         float mspt = source.getServer().getCurrentSmoothedTickTime();
 
@@ -84,8 +86,7 @@ public class WebMapCommand {
                 "§6=== §eVanillaWebMap Status §6===\n" +
                 "§7• §fHTTP Server: §a" + config.bindAddress + ":" + config.httpPort + " §7(Online)\n" +
                 "§7• §fOnline Players Tracked: §e" + onlinePlayers + "\n" +
-                "§7• §fDisk Tiles Cached: §a" + diskTiles + " .vmap files\n" +
-                "§7• §fRAM Cache: §a" + ramTiles + " chunks\n" +
+                "§7• §fExplored Tiles: §a" + overworldTiles + " §7(Overworld) | §c" + netherTiles + " §7(Nether) | §d" + endTiles + " §7(End)\n" +
                 "§7• §fServer MSPT: §e" + String.format("%.1f", mspt) + "ms\n" +
                 "§7• §fWeb URL: §dhttps://map.192015145.xyz/smp/"), false);
     }
@@ -99,17 +100,20 @@ public class WebMapCommand {
 
         HttpServerManager serverManager = mod.getServerManager();
         int centerX = 0, centerZ = 0;
+        ServerLevel level = source.getLevel();
         if (source.getEntity() instanceof ServerPlayer player) {
             centerX = ((int) player.getX()) >> 4;
             centerZ = ((int) player.getZ()) >> 4;
+            level = (ServerLevel) player.level();
         }
 
         final int cx = centerX;
         final int cz = centerZ;
-        source.sendSuccess(() -> Component.literal("§e[VanillaWebMap] Scanning and rendering radius " + radius + " chunks around [" + cx + ", " + cz + "]..."), true);
+        final String dimName = BinaryTileManager.normalizeDim(level.dimension().identifier().toString());
+        source.sendSuccess(() -> Component.literal("§e[VanillaWebMap] Scanning and rendering radius " + radius + " chunks around [" + cx + ", " + cz + "] in §6" + dimName + "§e..."), true);
 
         long start = System.currentTimeMillis();
-        int count = serverManager.getTileManager().forceRenderRadius(source.getServer().overworld(), cx, cz, radius);
+        int count = serverManager.getTileManager().forceRenderRadius(level, cx, cz, radius);
         long elapsed = System.currentTimeMillis() - start;
 
         source.sendSuccess(() -> Component.literal("§a[VanillaWebMap] Render complete! Cached " + count + " chunks in " + elapsed + "ms!"), true);

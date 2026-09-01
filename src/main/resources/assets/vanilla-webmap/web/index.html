@@ -113,6 +113,26 @@
         }
         .btn-icon:hover { color: var(--accent); transform: scale(1.1); }
 
+        /* Dimension Selector Pill Group */
+        .dim-selector {
+            display: flex; align-items: center; gap: 0.25rem;
+            background: var(--card-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 6px; padding: 0.15rem;
+        }
+        .dim-btn {
+            background: transparent; border: none; outline: none;
+            color: var(--ui-text-muted); font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 700; padding: 0.25rem 0.6rem;
+            border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.35rem;
+            transition: all 0.15s ease;
+        }
+        .dim-btn:hover { color: var(--ui-text); background: rgba(255,255,255,0.06); }
+        .dim-btn.active {
+            color: var(--accent); background: var(--ui-bg);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-weight: 800;
+        }
+
         /* Top-Right Dual Coordinate Search Boxes (X & Z) */
         .coord-search-box {
             display: flex; align-items: center; gap: 0.35rem;
@@ -306,6 +326,13 @@
             font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
             color: var(--ui-text-muted);
         }
+        .player-dim-tag {
+            font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 700;
+            padding: 0.1rem 0.35rem; border-radius: 4px;
+        }
+        .dim-tag-overworld { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+        .dim-tag-the_nether { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .dim-tag-the_end { background: rgba(192, 132, 252, 0.2); color: #c084fc; }
 
         /* Action Buttons */
         .btn-action {
@@ -344,6 +371,20 @@
             <a href="#" id="brandLink" class="brand-text" onclick="toggleSidebar()">
                 <span id="brandTitle">📜 Vanilla Web Map</span>
             </a>
+
+            <!-- Dimension Selector Pill -->
+            <div class="dim-selector">
+                <button class="dim-btn active" onclick="setDimension('overworld')" id="dimBtn-overworld" title="View Overworld">
+                    <span>🌍 Overworld</span>
+                </button>
+                <button class="dim-btn" onclick="setDimension('the_nether')" id="dimBtn-the_nether" title="View The Nether">
+                    <span>🔥 Nether</span>
+                </button>
+                <button class="dim-btn" onclick="setDimension('the_end')" id="dimBtn-the_end" title="View The End">
+                    <span>🌌 The End</span>
+                </button>
+            </div>
+
             <span style="color: #4ade80; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;" id="onlineStatus">● 0 Players</span>
         </div>
 
@@ -421,6 +462,10 @@
                         <span class="info-row-val" style="color: #4ade80;">Online (20.0 TPS)</span>
                     </div>
                     <div class="info-row">
+                        <span class="info-row-label">Current Dimension</span>
+                        <span class="info-row-val" id="sideDimText">Overworld</span>
+                    </div>
+                    <div class="info-row">
                         <span class="info-row-label">Explored Chunks</span>
                         <span class="info-row-val" id="sideChunkCount">0</span>
                     </div>
@@ -428,6 +473,22 @@
                         <span class="info-row-label">World Time</span>
                         <span class="info-row-val" id="sideWorldTime">Day</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- Dimension Switcher in Sidebar -->
+            <div>
+                <div class="section-label"><i class="fa-solid fa-earth-americas"></i> Select Dimension</div>
+                <div class="theme-grid">
+                    <button class="theme-option active" onclick="setDimension('overworld'); toggleSidebar();" id="sideDimBtn-overworld">
+                        <span>🌍 Overworld</span>
+                    </button>
+                    <button class="theme-option" onclick="setDimension('the_nether'); toggleSidebar();" id="sideDimBtn-the_nether">
+                        <span>🔥 The Nether</span>
+                    </button>
+                    <button class="theme-option" onclick="setDimension('the_end'); toggleSidebar();" id="sideDimBtn-the_end" style="grid-column: span 2;">
+                        <span>🌌 The End</span>
+                    </button>
                 </div>
             </div>
 
@@ -494,14 +555,12 @@
         ctx.imageSmoothingEnabled = false;
 
         let currentTheme = localStorage.getItem('vwebmap_theme') || 'parchment';
+        let currentDimension = localStorage.getItem('vwebmap_dim') || 'overworld';
         let isFullscreen = true;
         let isSidebarOpen = false;
         let showChunkGrid = false;
 
-        let viewX = 0, viewZ = 0;
         let cursorX = 0, cursorZ = 0;
-        let zoom = 2.0;
-        let mapRotation = 0;
         let isDragging = false;
         let isRotating = false;
         let startX, startY;
@@ -509,13 +568,37 @@
         let hasCentered = false;
         let currentServerIp = 'mc.server.net';
 
-        // Versioned Region Cache: key -> ImageBitmap, key -> version
-        const regionCache = new Map();
-        const cachedRegionVersions = new Map();
-        const fetchingVersions = new Map();
-        const pendingVersions = new Map();
-        const availableRegions = new Map(); // key -> version number
-        let totalExploredChunks = 0;
+        // Multi-Dimension State Store
+        const dimData = {
+            overworld: { viewX: 0, viewZ: 0, zoom: 2.0, rotation: 0, regions: new Map(), versions: new Map(), cache: new Map(), fetching: new Map(), pending: new Map(), chunks: 0 },
+            the_nether: { viewX: 0, viewZ: 0, zoom: 2.0, rotation: 0, regions: new Map(), versions: new Map(), cache: new Map(), fetching: new Map(), pending: new Map(), chunks: 0 },
+            the_end: { viewX: 0, viewZ: 0, zoom: 2.0, rotation: 0, regions: new Map(), versions: new Map(), cache: new Map(), fetching: new Map(), pending: new Map(), chunks: 0 }
+        };
+
+        function getActiveDimData() {
+            return dimData[currentDimension] || dimData.overworld;
+        }
+
+        function setDimension(dim) {
+            if (!dimData[dim]) dim = 'overworld';
+            currentDimension = dim;
+            localStorage.setItem('vwebmap_dim', dim);
+
+            ['overworld', 'the_nether', 'the_end'].forEach(d => {
+                const btn = document.getElementById(`dimBtn-${d}`);
+                if (btn) btn.className = `dim-btn ${d === dim ? 'active' : ''}`;
+                const sideBtn = document.getElementById(`sideDimBtn-${d}`);
+                if (sideBtn) sideBtn.className = `theme-option ${d === dim ? 'active' : ''}`;
+            });
+
+            const dimNames = { overworld: 'Overworld', the_nether: 'The Nether', the_end: 'The End' };
+            document.getElementById('sideDimText').textContent = dimNames[dim] || 'Overworld';
+
+            fetchExploredRegions();
+            updateCompass();
+            updateHud();
+            draw();
+        }
 
         function applyTheme(theme) {
             currentTheme = theme;
@@ -615,13 +698,15 @@
         });
 
         function resetRotation() {
-            mapRotation = 0;
+            const active = getActiveDimData();
+            active.rotation = 0;
             updateCompass();
             draw();
         }
 
         function updateCompass() {
-            const deg = (mapRotation * 180) / Math.PI;
+            const active = getActiveDimData();
+            const deg = (active.rotation * 180) / Math.PI;
             document.getElementById('compassIcon').style.transform = `rotate(${-deg}deg)`;
         }
 
@@ -634,8 +719,9 @@
             const targetX = parseFloat(xVal);
             const targetZ = parseFloat(zVal);
             if (!isNaN(targetX) && !isNaN(targetZ)) {
-                viewX = targetX;
-                viewZ = targetZ;
+                const active = getActiveDimData();
+                active.viewX = targetX;
+                active.viewZ = targetZ;
                 updateHud();
                 draw();
             }
@@ -647,7 +733,7 @@
             setTimeout(() => { flash.style.opacity = '0'; }, 150);
 
             const link = document.createElement('a');
-            link.download = `vanilla-map-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+            link.download = `vanilla-map-${currentDimension}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
         }
@@ -682,50 +768,55 @@
             });
         }
 
-        // Live Poll: Detects newly generated chunks in real-time by checking region versions
+        // Live Poll: Fetches regions index for active dimension
         function fetchExploredRegions() {
-            fetch(BASE_API + 'api/regions_index?_t=' + Date.now())
+            const dim = currentDimension;
+            const active = dimData[dim];
+
+            fetch(`${BASE_API}api/regions_index?dim=${dim}&_t=${Date.now()}`)
                 .then(res => res.json())
                 .then(versionsObj => {
                     let hasNewUpdate = false;
                     for (const [key, ver] of Object.entries(versionsObj)) {
-                        availableRegions.set(key, ver);
-                        if (cachedRegionVersions.get(key) !== ver) {
+                        active.regions.set(key, ver);
+                        if (active.versions.get(key) !== ver) {
                             hasNewUpdate = true;
                             const [rx, rz] = key.split('_').map(Number);
-                            fetchRegionTile(rx, rz, ver);
+                            fetchRegionTile(dim, rx, rz, ver);
                         }
                     }
-                    if (hasNewUpdate) draw();
+                    if (hasNewUpdate && currentDimension === dim) draw();
                 })
-                .catch(err => {
-                    console.error('[VanillaWebMap-ERROR] Failed fetching regions index:', err);
-                });
+                .catch(() => {});
 
-            fetch(BASE_API + 'api/tiles_index')
+            fetch(`${BASE_API}api/tiles_index?dim=${dim}`)
                 .then(res => res.json())
                 .then(chunks => {
-                    totalExploredChunks = chunks.length;
-                    document.getElementById('sideChunkCount').textContent = totalExploredChunks.toLocaleString();
-                    updateHud();
+                    active.chunks = chunks.length;
+                    if (currentDimension === dim) {
+                        document.getElementById('sideChunkCount').textContent = active.chunks.toLocaleString();
+                        updateHud();
+                    }
                 })
                 .catch(() => {});
         }
 
-        // Robust version-queued Region Fetch
-        function fetchRegionTile(rx, rz, ver) {
+        // Dimension-scoped Version-Queued Region Fetch
+        function fetchRegionTile(dim, rx, rz, ver) {
+            const active = dimData[dim];
+            if (!active) return;
             const key = `${rx}_${rz}`;
-            if (ver === undefined) ver = availableRegions.get(key) || 1;
+            if (ver === undefined) ver = active.regions.get(key) || 1;
 
-            if (fetchingVersions.has(key)) {
-                if (ver > fetchingVersions.get(key)) {
-                    pendingVersions.set(key, ver);
+            if (active.fetching.has(key)) {
+                if (ver > active.fetching.get(key)) {
+                    active.pending.set(key, ver);
                 }
                 return;
             }
 
-            fetchingVersions.set(key, ver);
-            fetch(`${BASE_API}api/region?rx=${rx}&rz=${rz}&v=${ver}`)
+            active.fetching.set(key, ver);
+            fetch(`${BASE_API}api/region?dim=${dim}&rx=${rx}&rz=${rz}&v=${ver}`)
                 .then(res => {
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     return res.arrayBuffer();
@@ -741,25 +832,25 @@
                         }
 
                         createImageBitmap(imgData).then(bmp => {
-                            regionCache.set(key, bmp);
-                            cachedRegionVersions.set(key, ver);
-                            fetchingVersions.delete(key);
+                            active.cache.set(key, bmp);
+                            active.versions.set(key, ver);
+                            active.fetching.delete(key);
 
-                            if (pendingVersions.has(key)) {
-                                const nextVer = pendingVersions.get(key);
-                                pendingVersions.delete(key);
+                            if (active.pending.has(key)) {
+                                const nextVer = active.pending.get(key);
+                                active.pending.delete(key);
                                 if (nextVer > ver) {
-                                    fetchRegionTile(rx, rz, nextVer);
+                                    fetchRegionTile(dim, rx, rz, nextVer);
                                 }
                             }
-                            draw();
+                            if (currentDimension === dim) draw();
                         });
                     } else {
-                        fetchingVersions.delete(key);
+                        active.fetching.delete(key);
                     }
                 })
-                .catch(err => {
-                    fetchingVersions.delete(key);
+                .catch(() => {
+                    active.fetching.delete(key);
                 });
         }
 
@@ -777,16 +868,19 @@
                     renderSidebarPlayers();
 
                     if (!hasCentered && players.length > 0) {
-                        viewX = players[0].x;
-                        viewZ = players[0].z;
+                        const firstPlayer = players[0];
+                        if (firstPlayer.dim && dimData[firstPlayer.dim]) {
+                            currentDimension = firstPlayer.dim;
+                        }
+                        const active = getActiveDimData();
+                        active.viewX = firstPlayer.x;
+                        active.viewZ = firstPlayer.z;
                         hasCentered = true;
-                        updateHud();
+                        setDimension(currentDimension);
                     }
                     draw();
                 })
-                .catch(err => {
-                    console.error('[VanillaWebMap-ERROR] Failed fetching players:', err);
-                });
+                .catch(() => {});
         }
 
         function renderSidebarPlayers() {
@@ -796,62 +890,82 @@
                 return;
             }
 
-            container.innerHTML = players.map(p => `
-                <div class="player-item" onclick="jumpToPlayer(${p.x}, ${p.z})">
+            container.innerHTML = players.map(p => {
+                const dimName = p.dim === 'the_nether' ? 'Nether' : (p.dim === 'the_end' ? 'End' : 'Overworld');
+                const tagClass = `dim-tag-${p.dim || 'overworld'}`;
+                return `
+                <div class="player-item" onclick="jumpToPlayer('${p.dim || 'overworld'}', ${p.x}, ${p.z})">
                     <div class="player-left">
                         <span style="color: var(--accent); font-size: 0.9rem;">▲</span>
                         <div>
-                            <div class="player-name">${p.name}</div>
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <span class="player-name">${p.name}</span>
+                                <span class="player-dim-tag ${tagClass}">${dimName}</span>
+                            </div>
                             <div class="player-coords">X: ${Math.round(p.x)}, Y: ${Math.round(p.y)}, Z: ${Math.round(p.z)}</div>
                         </div>
                     </div>
                     <i class="fa-solid fa-location-arrow" style="color: var(--accent); font-size: 0.85rem;"></i>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
-        function jumpToPlayer(x, z) {
-            viewX = x; viewZ = z;
+        function jumpToPlayer(dim, x, z) {
+            if (currentDimension !== dim) {
+                setDimension(dim);
+            }
+            const active = getActiveDimData();
+            active.viewX = x;
+            active.viewZ = z;
             updateHud();
             draw();
             toggleSidebar();
         }
 
         function draw() {
-            const computedCanvasBg = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim() || '#c8b282';
+            const active = getActiveDimData();
+
+            // Dimension-Aware Background Tint
+            let computedCanvasBg = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim() || '#c8b282';
+            if (currentDimension === 'the_nether') {
+                computedCanvasBg = '#1c080b'; // Deep Nether lava charcoal
+            } else if (currentDimension === 'the_end') {
+                computedCanvasBg = '#080511'; // Cosmic End void
+            }
+
             ctx.fillStyle = computedCanvasBg;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // ================= 1. WORLD TERRAIN RENDERING =================
             ctx.save();
             ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(mapRotation);
-            ctx.scale(zoom, zoom);
-            ctx.translate(-viewX, -viewZ);
+            ctx.rotate(active.rotation);
+            ctx.scale(active.zoom, active.zoom);
+            ctx.translate(-active.viewX, -active.viewZ);
 
             // Compute visible region bounds (512x512 blocks per region)
-            const diag = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / zoom / 2;
-            const minRegionX = Math.floor((viewX - diag) / 512) - 1;
-            const maxRegionX = Math.ceil((viewX + diag) / 512) + 1;
-            const minRegionZ = Math.floor((viewZ - diag) / 512) - 1;
-            const maxRegionZ = Math.ceil((viewZ + diag) / 512) + 1;
+            const diag = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / active.zoom / 2;
+            const minRegionX = Math.floor((active.viewX - diag) / 512) - 1;
+            const maxRegionX = Math.ceil((active.viewX + diag) / 512) + 1;
+            const minRegionZ = Math.floor((active.viewZ - diag) / 512) - 1;
+            const maxRegionZ = Math.ceil((active.viewZ + diag) / 512) + 1;
 
-            const seamPadding = Math.max(1, Math.ceil(1.5 / zoom));
+            const seamPadding = Math.max(1, Math.ceil(1.5 / active.zoom));
 
             // Seamless Region Drawing with Live Hot-Reload
             for (let rz = minRegionZ; rz <= maxRegionZ; rz++) {
                 for (let rx = minRegionX; rx <= maxRegionX; rx++) {
                     const key = `${rx}_${rz}`;
 
-                    if (availableRegions.has(key)) {
-                        const ver = availableRegions.get(key);
-                        const bmp = regionCache.get(key);
-                        const isCurrentVersion = cachedRegionVersions.get(key) === ver;
+                    if (active.regions.has(key)) {
+                        const ver = active.regions.get(key);
+                        const bmp = active.cache.get(key);
+                        const isCurrentVersion = active.versions.get(key) === ver;
 
                         if (bmp && isCurrentVersion) {
                             ctx.drawImage(bmp, rx * 512, rz * 512, 512 + seamPadding, 512 + seamPadding);
                         } else {
-                            fetchRegionTile(rx, rz, ver);
+                            fetchRegionTile(currentDimension, rx, rz, ver);
                             if (bmp) {
                                 ctx.drawImage(bmp, rx * 512, rz * 512, 512 + seamPadding, 512 + seamPadding);
                             }
@@ -860,17 +974,16 @@
                 }
             }
 
-            // High-Visibility Chunk Grid Overlay (Visible from 0.2x zoom to 8.0x zoom)
-            if (showChunkGrid && zoom >= 0.2) {
+            // High-Visibility Minimalist Chunk Grid
+            if (showChunkGrid && active.zoom >= 0.2) {
                 ctx.save();
-                // Golden Minecraft F3+G inspired chunk grid (ultra-crisp at any zoom)
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-                ctx.lineWidth = Math.max(0.5, 1.0 / zoom);
+                ctx.lineWidth = Math.max(0.5, 1.0 / active.zoom);
 
-                const minChunkX = Math.floor((viewX - diag) / 16) - 1;
-                const maxChunkX = Math.ceil((viewX + diag) / 16) + 1;
-                const minChunkZ = Math.floor((viewZ - diag) / 16) - 1;
-                const maxChunkZ = Math.ceil((viewZ + diag) / 16) + 1;
+                const minChunkX = Math.floor((active.viewX - diag) / 16) - 1;
+                const maxChunkX = Math.ceil((active.viewX + diag) / 16) + 1;
+                const minChunkZ = Math.floor((active.viewZ - diag) / 16) - 1;
+                const maxChunkZ = Math.ceil((active.viewZ + diag) / 16) + 1;
 
                 ctx.beginPath();
                 for (let cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -885,17 +998,22 @@
                 ctx.restore();
             }
 
-            ctx.restore(); // Restore world transformation
+            ctx.restore(); // Restore world transform
 
             // ================= 2. CRISP SCREEN-SPACE PLAYER RENDERING =================
-            const cos = Math.cos(mapRotation);
-            const sin = Math.sin(mapRotation);
+            const cos = Math.cos(active.rotation);
+            const sin = Math.sin(active.rotation);
 
             players.forEach(p => {
-                const dx = p.x - viewX;
-                const dz = p.z - viewZ;
-                const screenDx = (dx * cos - dz * sin) * zoom;
-                const screenDy = (dx * sin + dz * cos) * zoom;
+                // Only render players who are currently in this active dimension
+                if ((p.dim || 'overworld') !== currentDimension) {
+                    return;
+                }
+
+                const dx = p.x - active.viewX;
+                const dz = p.z - active.viewZ;
+                const screenDx = (dx * cos - dz * sin) * active.zoom;
+                const screenDy = (dx * sin + dz * cos) * active.zoom;
 
                 const screenX = canvas.width / 2 + screenDx;
                 const screenY = canvas.height / 2 + screenDy;
@@ -907,7 +1025,7 @@
                 // 1. Player Heading Arrow
                 ctx.save();
                 ctx.translate(screenX, screenY);
-                const playerScreenAngle = ((p.yaw + 180) * Math.PI) / 180 + mapRotation;
+                const playerScreenAngle = ((p.yaw + 180) * Math.PI) / 180 + active.rotation;
                 ctx.rotate(playerScreenAngle);
 
                 ctx.fillStyle = '#ffffff';
@@ -957,31 +1075,35 @@
         }
 
         function adjustZoom(factor) {
-            zoom = Math.min(8.0, Math.max(0.1, zoom * factor));
+            const active = getActiveDimData();
+            active.zoom = Math.min(8.0, Math.max(0.1, active.zoom * factor));
             updateHud();
             draw();
         }
 
         function centerOnPlayer() {
-            if (players.length > 0) {
-                viewX = players[0].x;
-                viewZ = players[0].z;
-                updateHud();
-                draw();
+            const matchingPlayer = players.find(p => (p.dim || 'overworld') === currentDimension) || players[0];
+            if (matchingPlayer) {
+                jumpToPlayer(matchingPlayer.dim || 'overworld', matchingPlayer.x, matchingPlayer.z);
             }
         }
 
         function resetView() {
-            viewX = 0; viewZ = 0; zoom = 2.0; mapRotation = 0;
+            const active = getActiveDimData();
+            active.viewX = 0; active.viewZ = 0; active.zoom = 2.0; active.rotation = 0;
             updateHud();
             draw();
         }
 
         function updateHud() {
-            document.getElementById('coordHud').textContent = `📍 Cursor: X: ${cursorX}, Z: ${cursorZ} • Zoom: ${zoom.toFixed(1)}x • Explored: ${totalExploredChunks}`;
+            const active = getActiveDimData();
+            const dimNames = { overworld: 'Overworld', the_nether: 'Nether', the_end: 'The End' };
+            const dimLabel = dimNames[currentDimension] || 'Overworld';
+            document.getElementById('coordHud').textContent = `📍 [${dimLabel}] Cursor: X: ${cursorX}, Z: ${cursorZ} • Zoom: ${active.zoom.toFixed(1)}x • Explored: ${active.chunks}`;
         }
 
         function getCursorWorldCoords(e) {
+            const active = getActiveDimData();
             const rect = canvas.getBoundingClientRect();
             const canvasX = e.clientX - rect.left;
             const canvasY = e.clientY - rect.top;
@@ -989,13 +1111,13 @@
             const dx = canvasX - canvas.width / 2;
             const dy = canvasY - canvas.height / 2;
 
-            const cos = Math.cos(-mapRotation);
-            const sin = Math.sin(-mapRotation);
+            const cos = Math.cos(-active.rotation);
+            const sin = Math.sin(-active.rotation);
             const unrotX = dx * cos - dy * sin;
             const unrotY = dx * sin + dy * cos;
 
-            const worldX = Math.round(viewX + unrotX / zoom);
-            const worldZ = Math.round(viewZ + unrotY / zoom);
+            const worldX = Math.round(active.viewX + unrotX / active.zoom);
+            const worldZ = Math.round(active.viewZ + unrotY / active.zoom);
             return { x: worldX, z: worldZ };
         }
 
@@ -1019,6 +1141,7 @@
         });
 
         viewport.addEventListener('mousemove', (e) => {
+            const active = getActiveDimData();
             const coords = getCursorWorldCoords(e);
             cursorX = coords.x;
             cursorZ = coords.z;
@@ -1026,7 +1149,7 @@
 
             if (isRotating) {
                 const deltaX = e.clientX - startX;
-                mapRotation += deltaX * 0.008;
+                active.rotation += deltaX * 0.008;
                 startX = e.clientX;
                 startY = e.clientY;
                 draw();
@@ -1034,16 +1157,16 @@
                 const deltaX = e.clientX - startX;
                 const deltaY = e.clientY - startY;
 
-                const cos = Math.cos(-mapRotation);
-                const sin = Math.sin(-mapRotation);
-                const unrotDx = (deltaX * cos - deltaY * sin) / zoom;
-                const unrotDy = (deltaX * sin + deltaY * cos) / zoom;
+                const cos = Math.cos(-active.rotation);
+                const sin = Math.sin(-active.rotation);
+                const unrotDx = (deltaX * cos - deltaY * sin) / active.zoom;
+                const unrotDy = (deltaX * sin + deltaY * cos) / active.zoom;
 
                 startX = e.clientX;
                 startY = e.clientY;
 
-                viewX -= unrotDx;
-                viewZ -= unrotDy;
+                active.viewX -= unrotDx;
+                active.viewZ -= unrotDy;
                 draw();
             }
         });
@@ -1057,9 +1180,9 @@
 
         // Initialize
         applyTheme(currentTheme);
+        setDimension(currentDimension);
         resizeCanvas();
         fetchConfig();
-        fetchExploredRegions();
         fetchPlayers();
         setInterval(fetchExploredRegions, 2000);
         setInterval(fetchPlayers, 1500);

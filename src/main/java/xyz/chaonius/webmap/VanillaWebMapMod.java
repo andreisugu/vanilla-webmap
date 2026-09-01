@@ -28,7 +28,7 @@ public class VanillaWebMapMod implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
         INSTANCE = this;
-        System.out.println("[VanillaWebMap] Initializing 8-Bit Vanilla Map Fabric Mod...");
+        System.out.println("[VanillaWebMap] Initializing Multi-Dimension 8-Bit Vanilla Map Fabric Mod...");
         this.config = ModConfig.loadOrCreate();
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
@@ -40,10 +40,10 @@ public class VanillaWebMapMod implements DedicatedServerModInitializer {
             serverManager.start();
         });
 
-        // Capture chunk color bytes on natural chunk load (0.005ms, guaranteed 0 missed chunks)
+        // Capture chunk color bytes across Overworld, Nether, and The End on natural chunk load (0.005ms)
         ServerChunkEvents.CHUNK_LOAD.register((level, chunk, isNewChunk) -> {
-            if (serverManager != null && level == level.getServer().overworld()) {
-                serverManager.getTileManager().onChunkLoad(chunk);
+            if (serverManager != null && level != null && chunk != null) {
+                serverManager.getTileManager().onChunkLoad(level, chunk);
             }
         });
 
