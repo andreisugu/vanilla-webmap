@@ -28,6 +28,8 @@ public class ModConfig {
     public boolean showPlayerHealth = true;
     public boolean showCoordinates = true;
     public boolean debugLogging = false;
+    public int scanRadius = 2;
+    public int scanIntervalTicks = 40;
 
     private long lastModified = 0;
 
@@ -55,6 +57,8 @@ public class ModConfig {
             if (json.has("show_player_health")) config.showPlayerHealth = json.get("show_player_health").getAsBoolean();
             if (json.has("show_coordinates")) config.showCoordinates = json.get("show_coordinates").getAsBoolean();
             if (json.has("debug_logging")) config.debugLogging = json.get("debug_logging").getAsBoolean();
+            if (json.has("scan_radius")) config.scanRadius = json.get("scan_radius").getAsInt();
+            if (json.has("scan_interval_ticks")) config.scanIntervalTicks = json.get("scan_interval_ticks").getAsInt();
 
             config.lastModified = CONFIG_FILE.lastModified();
 
@@ -87,6 +91,8 @@ public class ModConfig {
                 if (json.has("show_player_health")) this.showPlayerHealth = json.get("show_player_health").getAsBoolean();
                 if (json.has("show_coordinates")) this.showCoordinates = json.get("show_coordinates").getAsBoolean();
                 if (json.has("debug_logging")) this.debugLogging = json.get("debug_logging").getAsBoolean();
+                if (json.has("scan_radius")) this.scanRadius = json.get("scan_radius").getAsInt();
+                if (json.has("scan_interval_ticks")) this.scanIntervalTicks = json.get("scan_interval_ticks").getAsInt();
 
                 this.lastModified = CONFIG_FILE.lastModified();
                 System.out.println("[VanillaWebMap] Live config reload complete [Title: " + this.serverTitle + ", RateLimit: " + this.maxBackgroundTilesPerSecond + "/s]");
@@ -117,6 +123,8 @@ public class ModConfig {
             json.addProperty("show_player_health", showPlayerHealth);
             json.addProperty("show_coordinates", showCoordinates);
             json.addProperty("debug_logging", debugLogging);
+            json.addProperty("scan_radius", scanRadius);
+            json.addProperty("scan_interval_ticks", scanIntervalTicks);
 
             try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
                 GSON.toJson(json, writer);

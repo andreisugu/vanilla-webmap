@@ -40,16 +40,23 @@ public class VanillaWebMapMod implements DedicatedServerModInitializer {
             serverManager.start();
         });
 
-        // Capture chunk color bytes across Overworld, Nether, and The End on natural chunk load (0.005ms)
+        // 1. Capture newly loaded/generated chunks (0.005ms)
         ServerChunkEvents.CHUNK_LOAD.register((level, chunk, isNewChunk) -> {
             if (serverManager != null && level != null && chunk != null) {
                 serverManager.getTileManager().onChunkLoad(level, chunk);
             }
         });
 
-        // Config file reload watcher (every 5 seconds)
+        // 2. Real-time Player Proximity Building/Terrain Change Scanner (Every 2 seconds)
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (++tickCounter % 100 == 0) {
+            int interval = Math.max(10, config.scanIntervalTicks > 0 ? config.scanIntervalTicks : 40);
+            if (++tickCounter % interval == 0) {
+                if (serverManager != null) {
+                    serverManager.getTileManager().scanActivePlayers(server);
+                }
+            }
+
+            if (tickCounter % 100 == 0) {
                 config.checkAndReload();
             }
         });

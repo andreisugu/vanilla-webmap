@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -16,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -183,24 +185,6 @@ public class BinaryTileManager {
         System.out.println("[VanillaWebMap] Cleared all multi-dimension cached tiles.");
     }
 
-    public void clearDimensionCache(String dim) {
-        dim = normalizeDim(dim);
-        Map<String, byte[]> tc = tileMemoryCache.get(dim);
-        if (tc != null) tc.clear();
-        Map<String, byte[]> rc = regionMemoryCache.get(dim);
-        if (rc != null) rc.clear();
-        Set<String> kd = knownDiskTiles.get(dim);
-        if (kd != null) kd.clear();
-        Map<String, AtomicInteger> rv = regionVersions.get(dim);
-        if (rv != null) rv.clear();
-
-        File dimDir = new File(baseTilesDir, dim);
-        File[] files = dimDir.listFiles((dir, name) -> name.endsWith(".vmap"));
-        if (files != null) {
-            for (File f : files) f.delete();
-        }
-    }
-
     public void onChunkLoad(ServerLevel level, LevelChunk chunk) {
         if (chunk == null || level == null) return;
         String dim = normalizeDim(level.dimension().identifier().toString());
@@ -215,25 +199,58 @@ public class BinaryTileManager {
 
         byte[] data = renderChunkToBytes(level, chunk, cx, cz, dim);
         if (data != null) {
-            Map<String, byte[]> tileCache = tileMemoryCache.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
-            Map<String, AtomicInteger> versions = regionVersions.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
-
-            tileCache.put(key, data);
-            diskTiles.add(key);
-
-            int rx = cx >> 5;
-            int rz = cz >> 5;
-            String regKey = rx + "_" + rz;
-            updateRegionBuffer(dim, rx, rz, cx, cz, data);
-            versions.computeIfAbsent(regKey, k -> new AtomicInteger()).incrementAndGet();
-
-            asyncDiskWriter.submit(() -> {
-                File file = new File(new File(baseTilesDir, dim), key + ".vmap");
-                try (FileOutputStream fos = new FileOutputStream(file)) {
-                    fos.write(data);
-                } catch (IOException ignored) {}
-            });
+            saveChunkTile(dim, cx, cz, data);
         }
+    }
+
+    // Real-Time Player Proximity Terrain Change Scanner
+    public int scanActivePlayers(MinecraftServer server) {
+        if (server == null) return 0;
+        int modifiedCount = 0;
+        int radius = Math.max(1, Math.min(6, config.scanRadius > 0 ? config.scanRadius : 2));
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerLevel level = (ServerLevel) player.level();
+            int centerCx = ((int) player.getX()) >> 4;
+            int centerCz = ((int) player.getZ()) >> 4;
+
+            for (int dz = -radius; dz <= radius; dz++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    int cx = centerCx + dx;
+                    int cz = centerCz + dz;
+
+                    if (level.hasChunk(cx, cz)) {
+                        LevelChunk chunk = level.getChunk(cx, cz);
+                        if (chunk != null) {
+                            if (updateChunkIfModified(level, chunk, cx, cz)) {
+                                modifiedCount++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return modifiedCount;
+    }
+
+    public boolean updateChunkIfModified(ServerLevel level, LevelChunk chunk, int cx, int cz) {
+        if (chunk == null || level == null) return false;
+        String dim = normalizeDim(level.dimension().identifier().toString());
+        String key = cx + "_" + cz;
+
+        Map<String, byte[]> tileCache = tileMemoryCache.computeIfAbsent(dim, k -> new ConcurrentHashMap<>());
+        byte[] oldData = tileCache.get(key);
+        byte[] newData = renderChunkToBytes(level, chunk, cx, cz, dim);
+        if (newData == null) return false;
+
+        // If data hasn't changed at all, zero work done
+        if (oldData != null && Arrays.equals(oldData, newData)) {
+            return false;
+        }
+
+        // Terrain changed! Update in-memory tile, region buffer, and version
+        saveChunkTile(dim, cx, cz, newData);
+        return true;
     }
 
     public int forceRenderRadius(ServerLevel level, int centerChunkX, int centerChunkZ, int radius) {
