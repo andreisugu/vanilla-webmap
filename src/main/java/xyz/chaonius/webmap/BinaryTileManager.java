@@ -203,6 +203,14 @@ public class BinaryTileManager {
         }
     }
 
+    // Chunk Unload Finalizer: Captures any distant automated/redstone/TNT/fire changes before leaving RAM
+    public void onChunkUnload(ServerLevel level, LevelChunk chunk) {
+        if (chunk == null || level == null) return;
+        int cx = chunk.getPos().x();
+        int cz = chunk.getPos().z();
+        updateChunkIfModified(level, chunk, cx, cz);
+    }
+
     // Real-Time Player Proximity Terrain Change Scanner
     public int scanActivePlayers(MinecraftServer server) {
         if (server == null) return 0;
@@ -231,6 +239,34 @@ public class BinaryTileManager {
             }
         }
         return modifiedCount;
+    }
+
+    // Periodic Spawn Chunks Scanner (For permanent automated spawn farms/chunk loaders)
+    public int scanSpawnChunks(MinecraftServer server) {
+        if (server == null) return 0;
+        int modified = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            if (level == null) continue;
+            BlockPos spawnPos = (level.getRespawnData() != null && level.getRespawnData().pos() != null) ? level.getRespawnData().pos() : BlockPos.ZERO;
+            int spawnCx = spawnPos.getX() >> 4;
+            int spawnCz = spawnPos.getZ() >> 4;
+
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    int cx = spawnCx + dx;
+                    int cz = spawnCz + dz;
+                    if (level.hasChunk(cx, cz)) {
+                        LevelChunk chunk = level.getChunk(cx, cz);
+                        if (chunk != null) {
+                            if (updateChunkIfModified(level, chunk, cx, cz)) {
+                                modified++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return modified;
     }
 
     public boolean updateChunkIfModified(ServerLevel level, LevelChunk chunk, int cx, int cz) {

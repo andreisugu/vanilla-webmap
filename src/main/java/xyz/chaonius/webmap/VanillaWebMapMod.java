@@ -47,12 +47,26 @@ public class VanillaWebMapMod implements DedicatedServerModInitializer {
             }
         });
 
-        // 2. Real-time Player Proximity Building/Terrain Change Scanner (Every 2 seconds)
+        // 2. Capture chunk unloads: catches distant TNT craters, quarries, and automated farm changes before leaving RAM
+        ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> {
+            if (serverManager != null && level != null && chunk != null) {
+                serverManager.getTileManager().onChunkUnload(level, chunk);
+            }
+        });
+
+        // 3. Tick Loops: Active player proximity scanner & background spawn chunk check
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             int interval = Math.max(10, config.scanIntervalTicks > 0 ? config.scanIntervalTicks : 40);
             if (++tickCounter % interval == 0) {
                 if (serverManager != null) {
                     serverManager.getTileManager().scanActivePlayers(server);
+                }
+            }
+
+            // Periodic spawn chunks / chunk loader scan (Every 30s = 600 ticks)
+            if (tickCounter % 600 == 0) {
+                if (serverManager != null) {
+                    serverManager.getTileManager().scanSpawnChunks(server);
                 }
             }
 
