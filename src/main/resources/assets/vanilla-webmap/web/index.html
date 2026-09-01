@@ -864,8 +864,8 @@
             if (showChunkGrid && zoom >= 0.2) {
                 ctx.save();
                 // Golden Minecraft F3+G inspired chunk grid (ultra-crisp at any zoom)
-                ctx.strokeStyle = 'rgba(253, 224, 71, 0.65)';
-                ctx.lineWidth = Math.max(0.6, 1.8 / zoom);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+                ctx.lineWidth = Math.max(0.5, 1.0 / zoom);
 
                 const minChunkX = Math.floor((viewX - diag) / 16) - 1;
                 const maxChunkX = Math.ceil((viewX + diag) / 16) + 1;
