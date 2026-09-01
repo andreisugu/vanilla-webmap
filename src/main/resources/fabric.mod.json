@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "vanilla-webmap",
+  "version": "1.0.0",
+  "name": "VanillaWebMap",
+  "description": "Ultra-efficient Vanilla 2D Map web server with live player tracking for ChaoniusMC.",
+  "authors": [
+    "Chaonius Network"
+  ],
+  "contact": {
+    "homepage": "https://map.192015145.xyz"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "server": [
+      "xyz.chaonius.webmap.VanillaWebMapMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": ">=1.21"
+  }
+}

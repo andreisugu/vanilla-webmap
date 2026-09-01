@@ -1,0 +1,6 @@
+bin/
+*.class
+*.log
+world_webmap_cache/
+.DS_Store
+*.tmp

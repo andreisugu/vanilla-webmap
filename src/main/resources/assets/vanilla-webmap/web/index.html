@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title id="pageTitle">Vanilla Web Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            /* Theme Variables - Default: Parchment */
+            --bg-body: #18120c radial-gradient(circle at center, #2b1f14 0%, #0d0905 100%);
+            --canvas-bg: #c8b282;
+            --ui-bg: rgba(20, 14, 9, 0.88);
+            --ui-border: #5c4728;
+            --ui-border-strong: #785a33;
+            --ui-text: #f8fafc;
+            --ui-text-muted: #d6c7a1;
+            --accent: #fef08a;
+            --accent-hover: #fde047;
+            --frame-border: #5c3c1e;
+            --card-bg: rgba(36, 26, 17, 0.75);
+            --card-hover: rgba(56, 42, 28, 0.85);
+        }
+
+        body.theme-dark {
+            --bg-body: #090d16 radial-gradient(circle at center, #111827 0%, #030712 100%);
+            --canvas-bg: #1e293b;
+            --ui-bg: rgba(15, 23, 42, 0.88);
+            --ui-border: #334155;
+            --ui-border-strong: #475569;
+            --ui-text: #f8fafc;
+            --ui-text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --frame-border: #1e293b;
+            --card-bg: rgba(30, 41, 59, 0.65);
+            --card-hover: rgba(51, 65, 85, 0.85);
+        }
+
+        body.theme-amoled {
+            --bg-body: #000000;
+            --canvas-bg: #050505;
+            --ui-bg: rgba(10, 10, 10, 0.95);
+            --ui-border: #222222;
+            --ui-border-strong: #333333;
+            --ui-text: #ffffff;
+            --ui-text-muted: #888888;
+            --accent: #4ade80;
+            --accent-hover: #22c55e;
+            --frame-border: #111111;
+            --card-bg: rgba(18, 18, 18, 0.8);
+            --card-hover: rgba(28, 28, 28, 0.95);
+        }
+
+        body.theme-light {
+            --bg-body: #f1f5f9 radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%);
+            --canvas-bg: #e2e8f0;
+            --ui-bg: rgba(255, 255, 255, 0.92);
+            --ui-border: #cbd5e1;
+            --ui-border-strong: #94a3b8;
+            --ui-text: #0f172a;
+            --ui-text-muted: #64748b;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --frame-border: #cbd5e1;
+            --card-bg: rgba(241, 245, 249, 0.85);
+            --card-hover: rgba(226, 232, 240, 0.95);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            background: var(--bg-body);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--ui-text);
+            user-select: none;
+            transition: background 0.3s ease;
+        }
+
+        /* Top HUD Bar */
+        .hud-top {
+            position: absolute; top: 1rem; left: 1rem; right: 1rem;
+            display: flex; justify-content: space-between; align-items: center;
+            pointer-events: none; z-index: 100; gap: 0.75rem;
+        }
+
+        .hud-card {
+            background: var(--ui-bg);
+            border: 1.5px solid var(--ui-border);
+            border-radius: 8px;
+            padding: 0.45rem 0.85rem;
+            display: flex; align-items: center; gap: 0.6rem;
+            pointer-events: auto;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            transition: all 0.2s ease;
+        }
+
+        .brand-text {
+            font-weight: 800; font-size: 1.05rem; color: var(--accent);
+            display: flex; align-items: center; gap: 0.5rem;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-icon {
+            background: none; border: none; color: var(--ui-text);
+            font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            padding: 0.25rem; border-radius: 4px; transition: all 0.15s ease;
+        }
+        .btn-icon:hover { color: var(--accent); transform: scale(1.1); }
+
+        /* Top-Right Dual Coordinate Search Boxes (X & Z) */
+        .coord-search-box {
+            display: flex; align-items: center; gap: 0.35rem;
+            background: var(--card-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 6px; padding: 0.2rem 0.45rem;
+        }
+        .coord-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem; font-weight: 800;
+            color: var(--accent);
+        }
+        .coord-input {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--ui-border);
+            border-radius: 4px;
+            outline: none;
+            color: var(--ui-text); font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem; width: 62px; font-weight: 600;
+            padding: 0.15rem 0.3rem;
+            text-align: center;
+            transition: border-color 0.15s ease;
+        }
+        .coord-input:focus { border-color: var(--accent); }
+        .coord-input::-webkit-inner-spin-button, 
+        .coord-input::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        .coord-input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Map Viewport Container */
+        .map-viewport {
+            position: absolute;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            background: var(--canvas-bg);
+            overflow: hidden;
+            cursor: grab;
+        }
+        .map-viewport:active { cursor: grabbing; }
+
+        .map-viewport.framed {
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(88vw, 88vh);
+            height: min(88vw, 88vh);
+            max-width: 820px; max-height: 820px;
+            border: 14px solid var(--frame-border);
+            box-shadow: 0 0 0 4px rgba(0,0,0,0.5), 0 20px 50px rgba(0, 0, 0, 0.7);
+            border-radius: 8px;
+        }
+
+        .map-viewport.fullscreen {
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
+        }
+
+        #mapCanvas {
+            width: 100%; height: 100%;
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Bottom HUD Pills */
+        .coord-pill {
+            position: absolute; bottom: 1.5rem; left: 1.5rem;
+            background: var(--ui-bg);
+            border: 1.5px solid var(--ui-border);
+            border-radius: 6px;
+            padding: 0.45rem 0.95rem;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+        }
+
+        /* Bottom-Right Controls Stack */
+        .zoom-controls {
+            position: absolute; bottom: 1.5rem; right: 1.5rem;
+            display: flex; flex-direction: column; gap: 0.4rem;
+            z-index: 100;
+        }
+        .zoom-btn {
+            width: 40px; height: 40px;
+            background: var(--ui-bg);
+            border: 1.5px solid var(--ui-border);
+            color: var(--accent); border-radius: 6px;
+            font-size: 1.1rem; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.15s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);
+        }
+        .zoom-btn:hover { background: var(--ui-border); color: #fff; transform: scale(1.06); }
+        .zoom-btn.active { border-color: var(--accent); background: var(--card-hover); }
+
+        #compassIcon { transition: transform 0.1s linear; }
+
+        /* Slide-out Modern Sidebar */
+        .sidebar-drawer {
+            position: absolute; top: 0; left: 0; bottom: 0;
+            width: 320px; max-width: 85vw;
+            background: var(--ui-bg);
+            border-right: 1.5px solid var(--ui-border);
+            box-shadow: 10px 0 35px rgba(0,0,0,0.5);
+            backdrop-filter: blur(16px);
+            z-index: 150;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; flex-direction: column;
+        }
+        .sidebar-drawer.open { transform: translateX(0); }
+
+        .sidebar-header {
+            padding: 1.25rem 1.25rem 1rem;
+            border-bottom: 1.5px solid var(--ui-border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .sidebar-title {
+            font-weight: 800; font-size: 1.15rem; color: var(--accent);
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+
+        .sidebar-content {
+            flex: 1; overflow-y: auto; padding: 1.25rem;
+            display: flex; flex-direction: column; gap: 1.25rem;
+        }
+
+        .section-label {
+            font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--ui-text-muted);
+            margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;
+        }
+
+        .info-card {
+            background: var(--card-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 8px; padding: 0.85rem;
+            display: flex; flex-direction: column; gap: 0.6rem;
+        }
+
+        .info-row {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.84rem;
+        }
+        .info-row-label { color: var(--ui-text-muted); }
+        .info-row-val { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent); }
+
+        /* Theme Segmented Control */
+        .theme-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+        }
+        .theme-option {
+            background: var(--card-bg);
+            border: 1.5px solid var(--ui-border);
+            border-radius: 6px; padding: 0.6rem 0.75rem;
+            font-size: 0.82rem; font-weight: 700; color: var(--ui-text);
+            cursor: pointer; display: flex; align-items: center; gap: 0.5rem;
+            transition: all 0.15s ease;
+        }
+        .theme-option:hover { background: var(--card-hover); border-color: var(--ui-border-strong); }
+        .theme-option.active {
+            border-color: var(--accent); color: var(--accent);
+            background: var(--card-hover);
+        }
+
+        /* Player List */
+        .player-list {
+            display: flex; flex-direction: column; gap: 0.4rem;
+            max-height: 220px; overflow-y: auto;
+        }
+        .player-item {
+            background: var(--card-bg);
+            border: 1px solid var(--ui-border);
+            border-radius: 6px; padding: 0.5rem 0.75rem;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; transition: all 0.15s ease;
+        }
+        .player-item:hover {
+            background: var(--card-hover); border-color: var(--accent);
+            transform: translateX(3px);
+        }
+        .player-left { display: flex; align-items: center; gap: 0.6rem; }
+        .player-name { font-weight: 700; font-size: 0.88rem; }
+        .player-coords {
+            font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+            color: var(--ui-text-muted);
+        }
+
+        /* Action Buttons */
+        .btn-action {
+            background: var(--card-bg); border: 1.5px solid var(--ui-border);
+            color: var(--accent); padding: 0.55rem 0.75rem; border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: var(--card-hover); border-color: var(--accent); }
+
+        .overlay-backdrop {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 140; opacity: 0; pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .overlay-backdrop.active { opacity: 1; pointer-events: auto; }
+
+        /* Screenshot Flash Effect */
+        .screenshot-flash {
+            position: fixed; inset: 0; background: white; z-index: 999;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="screenshot-flash" id="flash"></div>
+
+    <!-- Top Navigation HUD -->
+    <div class="hud-top">
+        <div class="hud-card">
+            <button class="btn-icon" onclick="toggleSidebar()" title="Open Sidebar Menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <a href="#" id="brandLink" class="brand-text" onclick="toggleSidebar()">
+                <span id="brandTitle">📜 Vanilla Web Map</span>
+            </a>
+            <span style="color: #4ade80; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;" id="onlineStatus">● 0 Players</span>
+        </div>
+
+        <div class="hud-card">
+            <!-- Dual X and Z Coordinate Search -->
+            <form onsubmit="handleCoordSearch(event)" class="coord-search-box" title="Enter X and Z coordinates and press Enter or Go">
+                <span class="coord-tag">X:</span>
+                <input type="number" id="coordInputX" class="coord-input" placeholder="0" step="any">
+                <span class="coord-tag">Z:</span>
+                <input type="number" id="coordInputZ" class="coord-input" placeholder="0" step="any">
+                <button type="submit" class="btn-icon" style="font-size: 0.85rem; padding: 0.15rem 0.35rem;" title="Go to coordinates">
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <button class="btn-icon" onclick="takeScreenshot()" title="Take Screenshot (PNG)">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+
+            <button class="btn-icon" onclick="toggleThemeQuick()" title="Switch Theme">
+                <i class="fa-solid fa-moon" id="themeQuickIcon"></i>
+            </button>
+
+            <button class="btn-icon" onclick="toggleNativeFullscreen()" id="nativeFsBtn" title="Toggle Browser Fullscreen (F11)">
+                <i class="fa-solid fa-expand" id="nativeFsIcon"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Map Viewport Container -->
+    <div class="map-viewport fullscreen" id="viewport">
+        <canvas id="mapCanvas"></canvas>
+    </div>
+
+    <!-- Dynamic Cursor Coordinates HUD -->
+    <div class="coord-pill" id="coordHud">
+        📍 Cursor: X: 0, Z: 0 • Zoom: 2.0x • Explored: 0
+    </div>
+
+    <!-- Bottom-Right Interactive Controls Stack -->
+    <div class="zoom-controls">
+        <button class="zoom-btn" onclick="resetRotation()" id="compassBtn" title="Compass (Click to Reset North | Hold Ctrl+Drag to Rotate)"><i class="fa-regular fa-compass" id="compassIcon"></i></button>
+        <button class="zoom-btn" onclick="toggleChunkGrid()" id="gridBtn" title="Toggle Chunk Grid (Off)"><i class="fa-solid fa-border-all"></i></button>
+        <button class="zoom-btn" onclick="toggleFullscreen()" id="toggleFrameBtn" title="Toggle Fullscreen / Frame View"><i class="fa-solid fa-compress" id="frameIcon"></i></button>
+        <button class="zoom-btn" onclick="adjustZoom(1.3)" title="Zoom In (+)"><i class="fa-solid fa-plus"></i></button>
+        <button class="zoom-btn" onclick="adjustZoom(0.75)" title="Zoom Out (-)"><i class="fa-solid fa-minus"></i></button>
+        <button class="zoom-btn" onclick="centerOnPlayer()" title="Center on Player"><i class="fa-solid fa-location-crosshairs"></i></button>
+        <button class="zoom-btn" onclick="resetView()" title="Center on Spawn (0, 0)"><i class="fa-solid fa-house"></i></button>
+    </div>
+
+    <!-- Backdrop Dimmer -->
+    <div class="overlay-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+
+    <!-- Slide-out Modern Sidebar -->
+    <aside class="sidebar-drawer" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <span id="sideBrandTitle">Vanilla Web Map</span>
+            </div>
+            <button class="btn-icon" onclick="toggleSidebar()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="sidebar-content">
+            <!-- Server Details Card -->
+            <div>
+                <div class="section-label"><i class="fa-solid fa-server"></i> Server Overview</div>
+                <div class="info-card">
+                    <button class="btn-action" onclick="copyServerIp()" id="copyIpBtn">
+                        <span id="sidebarIpText">mc.server.net</span>
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                    <div class="info-row">
+                        <span class="info-row-label">Status</span>
+                        <span class="info-row-val" style="color: #4ade80;">Online (20.0 TPS)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-row-label">Explored Chunks</span>
+                        <span class="info-row-val" id="sideChunkCount">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-row-label">World Time</span>
+                        <span class="info-row-val" id="sideWorldTime">Day</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theme Switcher -->
+            <div>
+                <div class="section-label"><i class="fa-solid fa-palette"></i> Map Theme</div>
+                <div class="theme-grid">
+                    <button class="theme-option active" onclick="setTheme('parchment')" id="themeBtn-parchment">
+                        <span>📜 Parchment</span>
+                    </button>
+                    <button class="theme-option" onclick="setTheme('dark')" id="themeBtn-dark">
+                        <span>🌑 Slate Dark</span>
+                    </button>
+                    <button class="theme-option" onclick="setTheme('amoled')" id="themeBtn-amoled">
+                        <span>⬛ AMOLED</span>
+                    </button>
+                    <button class="theme-option" onclick="setTheme('light')" id="themeBtn-light">
+                        <span>☀️ Light</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Players -->
+            <div>
+                <div class="section-label"><i class="fa-solid fa-users"></i> Online Players (<span id="sidePlayerCount">0</span>)</div>
+                <div class="player-list" id="playerListContainer">
+                    <div style="font-size: 0.82rem; color: var(--ui-text-muted); text-align: center; padding: 1rem;">No players online</div>
+                </div>
+            </div>
+
+            <!-- Tools & Actions -->
+            <div>
+                <div class="section-label"><i class="fa-solid fa-toolbox"></i> Tools & Overlays</div>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    <button class="btn-action" onclick="toggleChunkGrid(); toggleSidebar();">
+                        <span><i class="fa-solid fa-border-all"></i> Toggle Chunk Grid Overlay</span>
+                        <span id="sideGridStatus" style="font-size: 0.75rem; color: var(--ui-text-muted);">Off</span>
+                    </button>
+                    <button class="btn-action" onclick="takeScreenshot(); toggleSidebar();">
+                        <span><i class="fa-solid fa-camera"></i> Save Map Screenshot</span>
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button class="btn-action" onclick="resetRotation(); toggleSidebar();">
+                        <span><i class="fa-regular fa-compass"></i> Reset Rotation (North)</span>
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button class="btn-action" onclick="resetView(); toggleSidebar();">
+                        <span><i class="fa-solid fa-house"></i> World Spawn (0, 0)</span>
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        const BASE_API = window.location.pathname.endsWith('/') ? window.location.pathname : (window.location.pathname + '/');
+
+        const MINECRAFT_PALETTE = new Uint32Array([0,0,0,0,-14189223,-13592211,-13061505,-14852541,-9198418,-7550507,-6034953,-11109502,-7566196,-5526613,-3684409,-9868951,-16777036,-16776996,-16776961,-16777081,-4951952,-2323830,-24416,-7908268,-9079435,-7303024,-5789785,-10987432,-16754944,-16750080,-16745472,-16760576,-4934476,-2302756,-1,-7895161,-8292749,-6385523,-4675420,-10397610,-13218710,-12427646,-11702889,-14141105,-11579569,-10461088,-9408400,-12895429,-4969171,-2345161,-49088,-7921375,-13478812,-12687749,-12028017,-14270645,-5459532,-2893348,-656129,-8288889,-14394984,-13865542,-13402152,-14990478,-6802051,-4570727,-2601806,-9295778,-6788024,-4553640,-2582170,-9285322,-14376543,-13843003,-13376027,-14976647,-15626151,-15355795,-15086465,-15897533,-9152086,-7442992,-5931022,-11058304,-13290187,-12500671,-11776948,-14145496,-9671572,-8092540,-6710887,-11447983,-9676491,-8098495,-6717620,-11451608,-8573863,-6736275,-5095553,-10608317,-8571612,-6733524,-5092301,-10606565,-14404280,-13876904,-13415322,-14997450,-14395064,-13865640,-13402266,-14990538,-14408596,-13882236,-13421671,-15000751,-15658735,-15395563,-15132391,-15921907,-13195088,-12399145,-11669766,-14123388,-6907328,-4735921,-2761892,-9407696,-4957644,-2331073,-32694,-7912665,-14116608,-13452544,-12920576,-14781952,-14533541,-14005649,-13543807,-15127228,-16776881,-16776864,-16776592,-16776901,-9339757,-7694156,-6180399,-11182738,-15124112,-14727543,-14396769,-15520940,-11780759,-10663040,-9676907,-13029810,-10400689,-8954528,-7705488,-11978437,-15114877,-14716256,-14383686,-15514014,-14331320,-13802408,-13273753,-14926538,-13158800,-12369270,-11645536,-14079916,-15197144,-14802127,-14472903,-15592162,-12235937,-11248524,-10327161,-13420473,-12566467,-11579573,-10724265,-13619154,-12700842,-11846039,-10991238,-13752768,-12571851,-11586239,-10731956,-13623256,-15195339,-14800063,-14470580,-15590872,-14862027,-14399935,-14003636,-15324376,-14669212,-14208134,-13747058,-15196341,-16052454,-15920609,-15722971,-16250093,-14540411,-14014045,-13553475,-15132316,-12309400,-11323777,-10403948,-13426354,-15462080,-15133361,-14870180,-15790800,-10594289,-9212910,-7963114,-12172789,-10329048,-8881614,-7565766,-11908322,-13951172,-13294262,-12702634,-14674131,-10649842,-9266415,-8014828,-12165366,-12171706,-11119018,-10197916,-13355980,-9995368,-8481094,-7098408,-11707278,-9865895,-8286099,-6903937,-11577277,0,0,0,0,0,0,0,0]);
+
+        const viewport = document.getElementById('viewport');
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        let currentTheme = localStorage.getItem('vwebmap_theme') || 'parchment';
+        let isFullscreen = true;
+        let isSidebarOpen = false;
+        let showChunkGrid = false;
+
+        let viewX = 0, viewZ = 0;
+        let cursorX = 0, cursorZ = 0;
+        let zoom = 2.0;
+        let mapRotation = 0;
+        let isDragging = false;
+        let isRotating = false;
+        let startX, startY;
+        let players = [];
+        let hasCentered = false;
+        let currentServerIp = 'mc.server.net';
+
+        // Versioned Region Cache: key -> ImageBitmap, key -> version
+        const regionCache = new Map();
+        const cachedRegionVersions = new Map();
+        const fetchingVersions = new Map();
+        const pendingVersions = new Map();
+        const availableRegions = new Map(); // key -> version number
+        let totalExploredChunks = 0;
+
+        function applyTheme(theme) {
+            currentTheme = theme;
+            localStorage.setItem('vwebmap_theme', theme);
+            document.body.className = theme === 'parchment' ? '' : `theme-${theme}`;
+
+            ['parchment', 'dark', 'amoled', 'light'].forEach(t => {
+                const btn = document.getElementById(`themeBtn-${t}`);
+                if (btn) btn.className = `theme-option ${t === theme ? 'active' : ''}`;
+            });
+
+            const quickIcon = document.getElementById('themeQuickIcon');
+            if (quickIcon) {
+                if (theme === 'dark' || theme === 'amoled') quickIcon.className = 'fa-solid fa-sun';
+                else quickIcon.className = 'fa-solid fa-moon';
+            }
+
+            draw();
+        }
+
+        function setTheme(theme) { applyTheme(theme); }
+
+        function toggleThemeQuick() {
+            if (currentTheme === 'parchment') setTheme('dark');
+            else if (currentTheme === 'dark') setTheme('amoled');
+            else if (currentTheme === 'amoled') setTheme('light');
+            else setTheme('parchment');
+        }
+
+        function toggleChunkGrid() {
+            showChunkGrid = !showChunkGrid;
+            const btn = document.getElementById('gridBtn');
+            const sideStatus = document.getElementById('sideGridStatus');
+            if (btn) {
+                if (showChunkGrid) {
+                    btn.classList.add('active');
+                    btn.title = "Toggle Chunk Grid (On)";
+                    if (sideStatus) sideStatus.textContent = "On";
+                } else {
+                    btn.classList.remove('active');
+                    btn.title = "Toggle Chunk Grid (Off)";
+                    if (sideStatus) sideStatus.textContent = "Off";
+                }
+            }
+            draw();
+        }
+
+        function toggleSidebar() {
+            isSidebarOpen = !isSidebarOpen;
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('backdrop');
+            if (isSidebarOpen) {
+                sidebar.classList.add('open');
+                backdrop.classList.add('active');
+            } else {
+                sidebar.classList.remove('open');
+                backdrop.classList.remove('active');
+            }
+        }
+
+        function resizeCanvas() {
+            canvas.width = viewport.clientWidth;
+            canvas.height = viewport.clientHeight;
+            ctx.imageSmoothingEnabled = false;
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function toggleFullscreen() {
+            isFullscreen = !isFullscreen;
+            if (isFullscreen) {
+                viewport.className = 'map-viewport fullscreen';
+                document.getElementById('frameIcon').className = 'fa-solid fa-compress';
+            } else {
+                viewport.className = 'map-viewport framed';
+                document.getElementById('frameIcon').className = 'fa-solid fa-expand';
+            }
+            setTimeout(resizeCanvas, 260);
+        }
+
+        function toggleNativeFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                document.getElementById('nativeFsIcon').className = 'fa-solid fa-compress';
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                document.getElementById('nativeFsIcon').className = 'fa-solid fa-expand';
+            }
+        }
+
+        document.addEventListener('fullscreenchange', () => {
+            const icon = document.getElementById('nativeFsIcon');
+            if (document.fullscreenElement) icon.className = 'fa-solid fa-compress';
+            else icon.className = 'fa-solid fa-expand';
+            setTimeout(resizeCanvas, 200);
+        });
+
+        function resetRotation() {
+            mapRotation = 0;
+            updateCompass();
+            draw();
+        }
+
+        function updateCompass() {
+            const deg = (mapRotation * 180) / Math.PI;
+            document.getElementById('compassIcon').style.transform = `rotate(${-deg}deg)`;
+        }
+
+        function handleCoordSearch(e) {
+            e.preventDefault();
+            const xVal = document.getElementById('coordInputX').value.trim();
+            const zVal = document.getElementById('coordInputZ').value.trim();
+            if (xVal === '' || zVal === '') return;
+
+            const targetX = parseFloat(xVal);
+            const targetZ = parseFloat(zVal);
+            if (!isNaN(targetX) && !isNaN(targetZ)) {
+                viewX = targetX;
+                viewZ = targetZ;
+                updateHud();
+                draw();
+            }
+        }
+
+        function takeScreenshot() {
+            const flash = document.getElementById('flash');
+            flash.style.opacity = '0.8';
+            setTimeout(() => { flash.style.opacity = '0'; }, 150);
+
+            const link = document.createElement('a');
+            link.download = `vanilla-map-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function fetchConfig() {
+            fetch(BASE_API + 'api/config')
+                .then(res => res.json())
+                .then(cfg => {
+                    if (cfg.title) {
+                        document.title = cfg.title;
+                        document.getElementById('brandTitle').textContent = `📜 ${cfg.title}`;
+                        document.getElementById('sideBrandTitle').textContent = cfg.title;
+                    }
+                    if (cfg.serverIp) {
+                        currentServerIp = cfg.serverIp;
+                        document.getElementById('sidebarIpText').textContent = cfg.serverIp;
+                    }
+                    if (cfg.headerUrl) {
+                        document.getElementById('brandLink').href = cfg.headerUrl;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function copyServerIp() {
+            navigator.clipboard.writeText(currentServerIp).then(() => {
+                const btn = document.getElementById('copyIpBtn');
+                btn.innerHTML = `<span>Copied IP!</span> <i class="fa-solid fa-check"></i>`;
+                setTimeout(() => {
+                    btn.innerHTML = `<span id="sidebarIpText">${currentServerIp}</span> <i class="fa-regular fa-copy"></i>`;
+                }, 2000);
+            });
+        }
+
+        // Live Poll: Detects newly generated chunks in real-time by checking region versions
+        function fetchExploredRegions() {
+            fetch(BASE_API + 'api/regions_index?_t=' + Date.now())
+                .then(res => res.json())
+                .then(versionsObj => {
+                    let hasNewUpdate = false;
+                    for (const [key, ver] of Object.entries(versionsObj)) {
+                        availableRegions.set(key, ver);
+                        if (cachedRegionVersions.get(key) !== ver) {
+                            hasNewUpdate = true;
+                            const [rx, rz] = key.split('_').map(Number);
+                            fetchRegionTile(rx, rz, ver);
+                        }
+                    }
+                    if (hasNewUpdate) draw();
+                })
+                .catch(err => {
+                    console.error('[VanillaWebMap-ERROR] Failed fetching regions index:', err);
+                });
+
+            fetch(BASE_API + 'api/tiles_index')
+                .then(res => res.json())
+                .then(chunks => {
+                    totalExploredChunks = chunks.length;
+                    document.getElementById('sideChunkCount').textContent = totalExploredChunks.toLocaleString();
+                    updateHud();
+                })
+                .catch(() => {});
+        }
+
+        // Robust version-queued Region Fetch
+        function fetchRegionTile(rx, rz, ver) {
+            const key = `${rx}_${rz}`;
+            if (ver === undefined) ver = availableRegions.get(key) || 1;
+
+            if (fetchingVersions.has(key)) {
+                if (ver > fetchingVersions.get(key)) {
+                    pendingVersions.set(key, ver);
+                }
+                return;
+            }
+
+            fetchingVersions.set(key, ver);
+            fetch(`${BASE_API}api/region?rx=${rx}&rz=${rz}&v=${ver}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.arrayBuffer();
+                })
+                .then(buf => {
+                    if (buf.byteLength === 262144) {
+                        const uint8 = new Uint8Array(buf);
+                        const imgData = ctx.createImageData(512, 512);
+                        const buf32 = new Uint32Array(imgData.data.buffer);
+
+                        for (let i = 0; i < 262144; i++) {
+                            buf32[i] = MINECRAFT_PALETTE[uint8[i] & 0xFF];
+                        }
+
+                        createImageBitmap(imgData).then(bmp => {
+                            regionCache.set(key, bmp);
+                            cachedRegionVersions.set(key, ver);
+                            fetchingVersions.delete(key);
+
+                            if (pendingVersions.has(key)) {
+                                const nextVer = pendingVersions.get(key);
+                                pendingVersions.delete(key);
+                                if (nextVer > ver) {
+                                    fetchRegionTile(rx, rz, nextVer);
+                                }
+                            }
+                            draw();
+                        });
+                    } else {
+                        fetchingVersions.delete(key);
+                    }
+                })
+                .catch(err => {
+                    fetchingVersions.delete(key);
+                });
+        }
+
+        function fetchPlayers() {
+            fetch(BASE_API + 'api/players')
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.json();
+                })
+                .then(data => {
+                    players = data;
+                    document.getElementById('onlineStatus').textContent = `● ${players.length} Player${players.length === 1 ? '' : 's'}`;
+                    document.getElementById('sidePlayerCount').textContent = players.length;
+
+                    renderSidebarPlayers();
+
+                    if (!hasCentered && players.length > 0) {
+                        viewX = players[0].x;
+                        viewZ = players[0].z;
+                        hasCentered = true;
+                        updateHud();
+                    }
+                    draw();
+                })
+                .catch(err => {
+                    console.error('[VanillaWebMap-ERROR] Failed fetching players:', err);
+                });
+        }
+
+        function renderSidebarPlayers() {
+            const container = document.getElementById('playerListContainer');
+            if (players.length === 0) {
+                container.innerHTML = `<div style="font-size: 0.82rem; color: var(--ui-text-muted); text-align: center; padding: 1rem;">No players online</div>`;
+                return;
+            }
+
+            container.innerHTML = players.map(p => `
+                <div class="player-item" onclick="jumpToPlayer(${p.x}, ${p.z})">
+                    <div class="player-left">
+                        <span style="color: var(--accent); font-size: 0.9rem;">▲</span>
+                        <div>
+                            <div class="player-name">${p.name}</div>
+                            <div class="player-coords">X: ${Math.round(p.x)}, Y: ${Math.round(p.y)}, Z: ${Math.round(p.z)}</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-location-arrow" style="color: var(--accent); font-size: 0.85rem;"></i>
+                </div>
+            `).join('');
+        }
+
+        function jumpToPlayer(x, z) {
+            viewX = x; viewZ = z;
+            updateHud();
+            draw();
+            toggleSidebar();
+        }
+
+        function draw() {
+            const computedCanvasBg = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim() || '#c8b282';
+            ctx.fillStyle = computedCanvasBg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // ================= 1. WORLD TERRAIN RENDERING =================
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(mapRotation);
+            ctx.scale(zoom, zoom);
+            ctx.translate(-viewX, -viewZ);
+
+            // Compute visible region bounds (512x512 blocks per region)
+            const diag = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / zoom / 2;
+            const minRegionX = Math.floor((viewX - diag) / 512) - 1;
+            const maxRegionX = Math.ceil((viewX + diag) / 512) + 1;
+            const minRegionZ = Math.floor((viewZ - diag) / 512) - 1;
+            const maxRegionZ = Math.ceil((viewZ + diag) / 512) + 1;
+
+            const seamPadding = Math.max(1, Math.ceil(1.5 / zoom));
+
+            // Seamless Region Drawing with Live Hot-Reload
+            for (let rz = minRegionZ; rz <= maxRegionZ; rz++) {
+                for (let rx = minRegionX; rx <= maxRegionX; rx++) {
+                    const key = `${rx}_${rz}`;
+
+                    if (availableRegions.has(key)) {
+                        const ver = availableRegions.get(key);
+                        const bmp = regionCache.get(key);
+                        const isCurrentVersion = cachedRegionVersions.get(key) === ver;
+
+                        if (bmp && isCurrentVersion) {
+                            ctx.drawImage(bmp, rx * 512, rz * 512, 512 + seamPadding, 512 + seamPadding);
+                        } else {
+                            fetchRegionTile(rx, rz, ver);
+                            if (bmp) {
+                                ctx.drawImage(bmp, rx * 512, rz * 512, 512 + seamPadding, 512 + seamPadding);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // High-Visibility Chunk Grid Overlay (Visible from 0.2x zoom to 8.0x zoom)
+            if (showChunkGrid && zoom >= 0.2) {
+                ctx.save();
+                // Golden Minecraft F3+G inspired chunk grid (ultra-crisp at any zoom)
+                ctx.strokeStyle = 'rgba(253, 224, 71, 0.65)';
+                ctx.lineWidth = Math.max(0.6, 1.8 / zoom);
+
+                const minChunkX = Math.floor((viewX - diag) / 16) - 1;
+                const maxChunkX = Math.ceil((viewX + diag) / 16) + 1;
+                const minChunkZ = Math.floor((viewZ - diag) / 16) - 1;
+                const maxChunkZ = Math.ceil((viewZ + diag) / 16) + 1;
+
+                ctx.beginPath();
+                for (let cx = minChunkX; cx <= maxChunkX; cx++) {
+                    ctx.moveTo(cx * 16, minChunkZ * 16);
+                    ctx.lineTo(cx * 16, maxChunkZ * 16);
+                }
+                for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                    ctx.moveTo(minChunkX * 16, cz * 16);
+                    ctx.lineTo(maxChunkX * 16, cz * 16);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            ctx.restore(); // Restore world transformation
+
+            // ================= 2. CRISP SCREEN-SPACE PLAYER RENDERING =================
+            const cos = Math.cos(mapRotation);
+            const sin = Math.sin(mapRotation);
+
+            players.forEach(p => {
+                const dx = p.x - viewX;
+                const dz = p.z - viewZ;
+                const screenDx = (dx * cos - dz * sin) * zoom;
+                const screenDy = (dx * sin + dz * cos) * zoom;
+
+                const screenX = canvas.width / 2 + screenDx;
+                const screenY = canvas.height / 2 + screenDy;
+
+                if (screenX < -60 || screenX > canvas.width + 60 || screenY < -60 || screenY > canvas.height + 60) {
+                    return;
+                }
+
+                // 1. Player Heading Arrow
+                ctx.save();
+                ctx.translate(screenX, screenY);
+                const playerScreenAngle = ((p.yaw + 180) * Math.PI) / 180 + mapRotation;
+                ctx.rotate(playerScreenAngle);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#090d16';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(0, -11);
+                ctx.lineTo(7, 9);
+                ctx.lineTo(0, 4.5);
+                ctx.lineTo(-7, 9);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+
+                // 2. Adaptive Dynamic Nametag Pill
+                ctx.save();
+                ctx.translate(screenX, screenY + 14);
+                ctx.font = "bold 11px 'JetBrains Mono', monospace";
+                const textWidth = ctx.measureText(p.name).width;
+                const badgeWidth = textWidth + 14;
+                const badgeHeight = 18;
+                const badgeX = -badgeWidth / 2;
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.lineWidth = 1;
+
+                if (ctx.roundRect) {
+                    ctx.beginPath();
+                    ctx.roundRect(badgeX, 0, badgeWidth, badgeHeight, 4);
+                    ctx.fill();
+                    ctx.stroke();
+                } else {
+                    ctx.fillRect(badgeX, 0, badgeWidth, badgeHeight);
+                    ctx.strokeRect(badgeX, 0, badgeWidth, badgeHeight);
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.name, 0, badgeHeight / 2 + 0.5);
+                ctx.restore();
+            });
+
+            updateCompass();
+        }
+
+        function adjustZoom(factor) {
+            zoom = Math.min(8.0, Math.max(0.1, zoom * factor));
+            updateHud();
+            draw();
+        }
+
+        function centerOnPlayer() {
+            if (players.length > 0) {
+                viewX = players[0].x;
+                viewZ = players[0].z;
+                updateHud();
+                draw();
+            }
+        }
+
+        function resetView() {
+            viewX = 0; viewZ = 0; zoom = 2.0; mapRotation = 0;
+            updateHud();
+            draw();
+        }
+
+        function updateHud() {
+            document.getElementById('coordHud').textContent = `📍 Cursor: X: ${cursorX}, Z: ${cursorZ} • Zoom: ${zoom.toFixed(1)}x • Explored: ${totalExploredChunks}`;
+        }
+
+        function getCursorWorldCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+
+            const dx = canvasX - canvas.width / 2;
+            const dy = canvasY - canvas.height / 2;
+
+            const cos = Math.cos(-mapRotation);
+            const sin = Math.sin(-mapRotation);
+            const unrotX = dx * cos - dy * sin;
+            const unrotY = dx * sin + dy * cos;
+
+            const worldX = Math.round(viewX + unrotX / zoom);
+            const worldZ = Math.round(viewZ + unrotY / zoom);
+            return { x: worldX, z: worldZ };
+        }
+
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.ctrlKey || e.button === 2) {
+                isRotating = true;
+            } else {
+                isDragging = true;
+            }
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            isRotating = false;
+        });
+
+        viewport.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        viewport.addEventListener('mousemove', (e) => {
+            const coords = getCursorWorldCoords(e);
+            cursorX = coords.x;
+            cursorZ = coords.z;
+            updateHud();
+
+            if (isRotating) {
+                const deltaX = e.clientX - startX;
+                mapRotation += deltaX * 0.008;
+                startX = e.clientX;
+                startY = e.clientY;
+                draw();
+            } else if (isDragging) {
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+
+                const cos = Math.cos(-mapRotation);
+                const sin = Math.sin(-mapRotation);
+                const unrotDx = (deltaX * cos - deltaY * sin) / zoom;
+                const unrotDy = (deltaX * sin + deltaY * cos) / zoom;
+
+                startX = e.clientX;
+                startY = e.clientY;
+
+                viewX -= unrotDx;
+                viewZ -= unrotDy;
+                draw();
+            }
+        });
+
+        // Mouse Wheel Zoom centered on cursor
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 0.85;
+            adjustZoom(factor);
+        }, { passive: false });
+
+        // Initialize
+        applyTheme(currentTheme);
+        resizeCanvas();
+        fetchConfig();
+        fetchExploredRegions();
+        fetchPlayers();
+        setInterval(fetchExploredRegions, 2000);
+        setInterval(fetchPlayers, 1500);
+    </script>
+</body>
+</html>
