@@ -183,6 +183,24 @@ public class BinaryTileManager {
         System.out.println("[VanillaWebMap] Cleared all multi-dimension cached tiles.");
     }
 
+    public void clearDimensionCache(String dim) {
+        dim = normalizeDim(dim);
+        Map<String, byte[]> tc = tileMemoryCache.get(dim);
+        if (tc != null) tc.clear();
+        Map<String, byte[]> rc = regionMemoryCache.get(dim);
+        if (rc != null) rc.clear();
+        Set<String> kd = knownDiskTiles.get(dim);
+        if (kd != null) kd.clear();
+        Map<String, AtomicInteger> rv = regionVersions.get(dim);
+        if (rv != null) rv.clear();
+
+        File dimDir = new File(baseTilesDir, dim);
+        File[] files = dimDir.listFiles((dir, name) -> name.endsWith(".vmap"));
+        if (files != null) {
+            for (File f : files) f.delete();
+        }
+    }
+
     public void onChunkLoad(ServerLevel level, LevelChunk chunk) {
         if (chunk == null || level == null) return;
         String dim = normalizeDim(level.dimension().identifier().toString());
@@ -333,31 +351,53 @@ public class BinaryTileManager {
                 int idx = lz * 16 + lx;
 
                 try {
-                    int startScanY;
                     if (isNether) {
-                        // Peel bedrock ceiling: start scan below Y=126 and skip bedrock roof
-                        startScanY = 125;
-                    } else if (dim.equals("the_end")) {
-                        int topY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
-                        startScanY = Math.max(topY, 70);
+                        // Intelligent Nether Cavern Floor Scanner:
+                        // 1. Bore down through the solid nether ceiling (Y=115 -> Y=32) until finding open air
+                        int scanY = 115;
+                        pos.set(worldX, scanY, worldZ);
+                        while (scanY > 35 && !chunk.getBlockState(pos).isAir()) {
+                            scanY--;
+                            pos.setY(scanY);
+                        }
+
+                        // 2. From the open air cavern space, scan down to find the floor / lava ocean
+                        BlockState floorState = Blocks.AIR.defaultBlockState();
+                        MapColor floorColor = MapColor.NONE;
+
+                        while (scanY > minY) {
+                            floorState = chunk.getBlockState(pos);
+                            floorColor = floorState.getBlock().defaultMapColor();
+
+                            // Stop when hitting non-air solid floor or lava
+                            if (floorColor != MapColor.NONE && !floorState.isAir()) {
+                                break;
+                            }
+                            scanY--;
+                            pos.setY(scanY);
+                        }
+
+                        heights[idx] = scanY;
+                        colors[idx] = floorColor;
                     } else {
+                        // Standard Overworld & The End surface scanner
                         int topY = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
-                        startScanY = Math.max(topY, 150);
+                        int startScanY = dim.equals("the_end") ? Math.max(topY, 70) : Math.max(topY, 150);
+                        startScanY = Math.min(maxY - 1, Math.max(minY + 1, startScanY));
+
+                        pos.set(worldX, startScanY, worldZ);
+                        BlockState state = chunk.getBlockState(pos);
+                        MapColor mapColor = state.getBlock().defaultMapColor();
+
+                        while (mapColor == MapColor.NONE && pos.getY() > minY) {
+                            pos.setY(pos.getY() - 1);
+                            state = chunk.getBlockState(pos);
+                            mapColor = state.getBlock().defaultMapColor();
+                        }
+
+                        heights[idx] = pos.getY();
+                        colors[idx] = mapColor;
                     }
-
-                    startScanY = Math.min(maxY - 1, Math.max(minY + 1, startScanY));
-                    pos.set(worldX, startScanY, worldZ);
-                    BlockState state = chunk.getBlockState(pos);
-                    MapColor mapColor = state.getBlock().defaultMapColor();
-
-                    while (pos.getY() > minY && (mapColor == MapColor.NONE || (isNether && pos.getY() >= 120 && state.is(Blocks.BEDROCK)))) {
-                        pos.setY(pos.getY() - 1);
-                        state = chunk.getBlockState(pos);
-                        mapColor = state.getBlock().defaultMapColor();
-                    }
-
-                    heights[idx] = pos.getY();
-                    colors[idx] = mapColor;
                 } catch (Exception e) {
                     heights[idx] = minY;
                     colors[idx] = MapColor.NONE;
@@ -365,6 +405,7 @@ public class BinaryTileManager {
             }
         }
 
+        // Shading: compute relief relative to northern block
         for (int lz = 0; lz < 16; lz++) {
             for (int lx = 0; lx < 16; lx++) {
                 int idx = lz * 16 + lx;
