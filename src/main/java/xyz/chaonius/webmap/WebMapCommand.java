@@ -88,7 +88,7 @@ public class WebMapCommand {
                 "§7• §fOnline Players Tracked: §e" + onlinePlayers + "\n" +
                 "§7• §fExplored Tiles: §a" + overworldTiles + " §7(Overworld) | §c" + netherTiles + " §7(Nether) | §d" + endTiles + " §7(End)\n" +
                 "§7• §fServer MSPT: §e" + String.format("%.1f", mspt) + "ms\n" +
-                "§7• §fWeb URL: §dhttps://map.192015145.xyz/smp/"), false);
+                "§7• §fWeb URL: §dhttps://map.192015145.xyz/survival/"), false);
     }
 
     private static int executeRender(CommandSourceStack source, int radius) {

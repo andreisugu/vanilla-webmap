@@ -147,9 +147,9 @@ VanillaWebMap provides a command suite under `/webmap` *(Requires Permission Lev
 
 To expose VanillaWebMap behind Nginx (with SSL / Cloudflare):
 
-### Option A: Subpath Routing (e.g. `https://map.example.com/smp/`)
+### Option A: Subpath Routing (e.g. `https://map.example.com/survival/`)
 ```nginx
-location /smp/ {
+location /survival/ {
     proxy_pass http://127.0.0.1:8105/;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
