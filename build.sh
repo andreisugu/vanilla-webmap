@@ -31,9 +31,7 @@ javac -cp "${SERVER_JAR}:${LOADER_JAR}:libs/fabric-modules/*:libs/mc-libs/*" \
 
 # Copy mod metadata and assets
 echo "📄 Packaging resources..."
-cp src/main/resources/fabric.mod.json bin/
-mkdir -p bin/assets/vanilla-webmap/web
-cp src/main/resources/assets/vanilla-webmap/web/index.html bin/assets/vanilla-webmap/web/
+cp -r src/main/resources/* bin/
 
 # Package into mod jar
 echo "📦 Creating vanilla-webmap-1.0.0.jar..."

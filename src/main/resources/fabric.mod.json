@@ -12,8 +12,8 @@
     "sources": "https://github.com/andreisugu/vanilla-webmap",
     "issues": "https://github.com/andreisugu/vanilla-webmap/issues"
   },
-  "license": "Apache-2.0",
-  "environment": "*",
+  "icon": "assets/vanilla-webmap/icon.png",
+  "environment": "server",
   "entrypoints": {
     "server": [
       "xyz.chaonius.webmap.VanillaWebMapMod"
@@ -21,6 +21,7 @@
   },
   "depends": {
     "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
     "minecraft": ">=1.21"
   }
 }
