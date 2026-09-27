@@ -27,6 +27,8 @@ public class ModConfig {
     public String tileCacheDir = "webmap_cache/tiles";
     public boolean showPlayerHealth = true;
     public boolean showCoordinates = true;
+    public boolean hideSpectators = true;
+    public boolean hideInvisible = true;
     public boolean debugLogging = false;
     public int scanRadius = 2;
     public int scanIntervalTicks = 40;
@@ -56,6 +58,8 @@ public class ModConfig {
             if (json.has("tile_cache_directory")) config.tileCacheDir = json.get("tile_cache_directory").getAsString();
             if (json.has("show_player_health")) config.showPlayerHealth = json.get("show_player_health").getAsBoolean();
             if (json.has("show_coordinates")) config.showCoordinates = json.get("show_coordinates").getAsBoolean();
+            if (json.has("hide_spectators")) config.hideSpectators = json.get("hide_spectators").getAsBoolean();
+            if (json.has("hide_invisible")) config.hideInvisible = json.get("hide_invisible").getAsBoolean();
             if (json.has("debug_logging")) config.debugLogging = json.get("debug_logging").getAsBoolean();
             if (json.has("scan_radius")) config.scanRadius = json.get("scan_radius").getAsInt();
             if (json.has("scan_interval_ticks")) config.scanIntervalTicks = json.get("scan_interval_ticks").getAsInt();
@@ -90,6 +94,8 @@ public class ModConfig {
                 if (json.has("max_mspt_threshold")) this.maxMsptThreshold = json.get("max_mspt_threshold").getAsFloat();
                 if (json.has("show_player_health")) this.showPlayerHealth = json.get("show_player_health").getAsBoolean();
                 if (json.has("show_coordinates")) this.showCoordinates = json.get("show_coordinates").getAsBoolean();
+                if (json.has("hide_spectators")) this.hideSpectators = json.get("hide_spectators").getAsBoolean();
+                if (json.has("hide_invisible")) this.hideInvisible = json.get("hide_invisible").getAsBoolean();
                 if (json.has("debug_logging")) this.debugLogging = json.get("debug_logging").getAsBoolean();
                 if (json.has("scan_radius")) this.scanRadius = json.get("scan_radius").getAsInt();
                 if (json.has("scan_interval_ticks")) this.scanIntervalTicks = json.get("scan_interval_ticks").getAsInt();
@@ -122,6 +128,8 @@ public class ModConfig {
             json.addProperty("tile_cache_directory", tileCacheDir);
             json.addProperty("show_player_health", showPlayerHealth);
             json.addProperty("show_coordinates", showCoordinates);
+            json.addProperty("hide_spectators", hideSpectators);
+            json.addProperty("hide_invisible", hideInvisible);
             json.addProperty("debug_logging", debugLogging);
             json.addProperty("scan_radius", scanRadius);
             json.addProperty("scan_interval_ticks", scanIntervalTicks);

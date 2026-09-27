@@ -25,6 +25,20 @@ public class VanillaWebMapMod implements DedicatedServerModInitializer {
         return serverManager;
     }
 
+    private final java.util.Set<java.util.UUID> hiddenPlayers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public boolean isPlayerHidden(java.util.UUID uuid) {
+        return hiddenPlayers.contains(uuid);
+    }
+
+    public boolean setPlayerHidden(java.util.UUID uuid, boolean hidden) {
+        if (hidden) {
+            return hiddenPlayers.add(uuid);
+        } else {
+            return hiddenPlayers.remove(uuid);
+        }
+    }
+
     @Override
     public void onInitializeServer() {
         INSTANCE = this;

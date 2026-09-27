@@ -50,16 +50,22 @@ This mod is purely server-side. Players joining your server do not need to insta
 
 Access the map in your browser at `http://<server-ip>:8105/`.
 
-## Commands
+## Commands & Permissions
 
-Requires operator permissions (permission level 2+):
+Compatible with LuckPerms, Fabric Permissions API, and vanilla permission levels:
 
-| Command | Description |
-| :--- | :--- |
-| `/webmap status` | Shows HTTP server port, online player count, and cached tile stats. |
-| `/webmap render <radius>` | Force-scans and renders chunks around the player. |
-| `/webmap reload` | Reloads `config/vanilla-webmap.json` without restarting the server. |
-| `/webmap clear` | Clears in-memory and disk tile caches. |
+| Command | Permission Node | Default Level | Description |
+| :--- | :--- | :--- | :--- |
+| `/webmap status` | `vanillawebmap.command.status` | All Players (0) | Displays HTTP port, online player count, and cached tile stats. |
+| `/webmap hide` | `vanillawebmap.command.hide` | All Players (0) | Hides yourself from the live web map. |
+| `/webmap hide <player>` | `vanillawebmap.command.hide.others` | Operators (2) | Hides another player from the live web map. |
+| `/webmap show` | `vanillawebmap.command.show` | All Players (0) | Unhides yourself on the live web map. |
+| `/webmap show <player>` | `vanillawebmap.command.show.others` | Operators (2) | Unhides another player on the live web map. |
+| `/webmap render [radius]` | `vanillawebmap.command.render` | Operators (2) | Force-scans and renders chunks around the player. |
+| `/webmap reload` | `vanillawebmap.command.reload` | Operators (2) | Reloads `config/vanilla-webmap.json` without restarting the server. |
+| `/webmap clear` | `vanillawebmap.command.clear` | Operators (2) | Clears in-memory and disk tile caches. |
+
+> Master permission `vanillawebmap.admin` grants access to all VanillaWebMap commands.
 
 ## Configuration
 

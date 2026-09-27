@@ -82,7 +82,17 @@ public class HttpServerManager {
 
     private void handlePlayers(HttpExchange exchange) throws IOException {
         JsonArray array = new JsonArray();
+        VanillaWebMapMod mod = VanillaWebMapMod.getInstance();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (mod != null && mod.isPlayerHidden(player.getUUID())) {
+                continue;
+            }
+            if (config.hideSpectators && player.isSpectator()) {
+                continue;
+            }
+            if (config.hideInvisible && player.isInvisible()) {
+                continue;
+            }
             JsonObject obj = new JsonObject();
             obj.addProperty("name", player.getScoreboardName());
             obj.addProperty("x", Math.round(player.getX() * 100.0) / 100.0);
