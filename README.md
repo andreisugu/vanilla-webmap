@@ -43,7 +43,7 @@ This mod is purely server-side. Players joining your server do not need to insta
 
 ## Installation
 
-1. Download `vanilla-webmap-1.0.0.jar` from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/vanillawebmap) or [GitHub Releases](https://github.com/andreisugu/vanilla-webmap/releases).
+1. Download `vanilla-webmap-1.1.0.jar` from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/vanillawebmap) or [GitHub Releases](https://github.com/andreisugu/vanilla-webmap/releases).
 2. Drop the jar into your server's `mods/` directory.
 3. Make sure Fabric Loader (0.16+) and Fabric API are installed.
 4. Start your server. The web map will start automatically on port `8105`.
@@ -127,7 +127,7 @@ chmod +x build.sh
 ./build.sh
 ```
 
-Compiled jar will be located at `vanilla-webmap-1.0.0.jar`.
+Compiled jar will be located at `vanilla-webmap-1.1.0.jar`.
 
 ## License
 

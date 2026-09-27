@@ -33,8 +33,13 @@ javac -cp "${SERVER_JAR}:${LOADER_JAR}:libs/fabric-modules/*:libs/mc-libs/*" \
 echo "📄 Packaging resources..."
 cp -r src/main/resources/* bin/
 
-# Package into mod jar
-echo "📦 Creating vanilla-webmap-1.0.0.jar..."
-(cd bin && jar -cf ../vanilla-webmap-1.0.0.jar *)
+# Extract version from fabric.mod.json
+VERSION=$(grep '"version"' src/main/resources/fabric.mod.json | head -n 1 | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+JAR_NAME="vanilla-webmap-${VERSION}.jar"
 
-echo "✅ Build successful: vanilla-webmap-1.0.0.jar ($(du -h vanilla-webmap-1.0.0.jar | cut -f1))"
+# Package into mod jar
+echo "📦 Creating ${JAR_NAME}..."
+rm -f vanilla-webmap-*.jar
+(cd bin && jar -cf "../${JAR_NAME}" *)
+
+echo "✅ Build successful: ${JAR_NAME} ($(du -h "${JAR_NAME}" | cut -f1))"
