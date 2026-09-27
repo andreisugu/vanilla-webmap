@@ -180,11 +180,15 @@ location / {
 ## 🛠️ Building from Source
 
 ### Prerequisites
-* JDK 21 or higher
-* Fabric Loader & Minecraft 1.21+ server libraries placed in `libs/`
+* JDK 21 or higher (Java 25 recommended)
 
 ### Quick Build
 ```bash
+# 1. Download and extract build dependencies (first time only)
+chmod +x scripts/setup-deps.sh
+./scripts/setup-deps.sh
+
+# 2. Compile and package mod JAR
 chmod +x build.sh
 ./build.sh
 ```
