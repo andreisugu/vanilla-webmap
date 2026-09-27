@@ -3,7 +3,7 @@
   "id": "vanilla-webmap",
   "version": "1.0.0",
   "name": "VanillaWebMap",
-  "description": "Ultra-efficient Vanilla 2D Map web server with live player tracking.",
+  "description": "Ultra-efficient Vanilla 2D Map web server with live player tracking for Minecraft 1.21+, 26.2, and 26.3.",
   "authors": [
     "Chaonius Network"
   ],

@@ -5,12 +5,12 @@
 **Ultra-Fast, Zero-Lag, 8-Bit Vanilla Minecraft Web Map**  
 *High-performance binary streaming, event-driven chunk capture, and modern HTML5 Canvas visualization.*
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.21%2B%20%7C%2026.2%2B-brightgreen.svg)](https://minecraft.net)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.21%2B%20%7C%2026.2%20%7C%2026.3-brightgreen.svg)](https://minecraft.net)
 [![Fabric Mod](https://img.shields.io/badge/Mod%20Loader-Fabric-blue.svg)](https://fabricmc.net/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-21%2B-red.svg)](https://adoptium.net/)
+[![Java](https://img.shields.io/badge/Java-21%2B%20%7C%2025-red.svg)](https://adoptium.net/)
 
-[Features](#-key-features) • [Architecture](#-architecture--wire-protocol) • [Installation](#-installation) • [Configuration](#%EF%B8%8F-configuration) • [Commands](#-in-game-commands) • [Reverse Proxy](#-reverse-proxy--nginx-setup) • [Building](#-%EF%B8%8F-building-from-source)
+[Features](#-key-features) • [Compatibility](#-version-compatibility) • [Architecture](#-architecture--wire-protocol) • [Installation](#-installation) • [Configuration](#%EF%B8%8F-configuration) • [Commands](#-in-game-commands) • [Reverse Proxy](#-reverse-proxy--nginx-setup) • [Building](#-%EF%B8%8F-building-from-source)
 
 </div>
 
@@ -45,6 +45,18 @@ Tile data is packed into **512×512 Region Mega-Tiles (256 KB)** and streamed to
 * **👥 Live Player Tracking:** Crisp screen-space heading markers and auto-sizing nametag pills with health & position telemetry.
 * **📸 1-Click PNG Screenshot:** Export clean high-resolution map screenshots with camera flash visual effects.
 * **📱 Responsive & Fullscreen:** Seamless transition between bordered frame mode and full browser edge-to-edge view.
+
+---
+
+## 🎮 Version Compatibility
+
+VanillaWebMap is architected with **zero Mixins** and a dedicated background HTTP streaming server, ensuring high stability and forward compatibility across Minecraft releases:
+
+| Minecraft Version | Fabric Loader | Fabric API | Java Runtime | Support Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **26.3** *(Latest)* | `0.19.5+` | `0.161.0+` | Java 25 | 🟢 Fully Tested & Verified |
+| **26.2** | `0.19.3+` | `0.158.0+` | Java 25 | 🟢 Production Verified |
+| **1.21.x** | `0.16.0+` | `0.100.0+` | Java 21 | 🟢 Compatible |
 
 ---
 
@@ -93,7 +105,7 @@ Tile data is packed into **512×512 Region Mega-Tiles (256 KB)** and streamed to
 
 1. Download the latest `vanilla-webmap-1.0.0.jar`.
 2. Place the `.jar` into your Minecraft server's `mods/` folder.
-3. Requires **Fabric Loader 0.16+** on Minecraft **1.21+ / 26.2+** with Java 21+.
+3. Requires **Fabric Loader 0.16+** on Minecraft **1.21+, 26.2, or 26.3** with Java 21+ (Java 25 for 26.x).
 4. Start the server. The web server will automatically initialize on port `8105`.
 
 ---
