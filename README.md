@@ -1,6 +1,13 @@
 # VanillaWebMap
 
-[Modrinth](https://modrinth.com/mod/vanilla-webmap) | [GitHub](https://github.com/andreisugu/vanilla-webmap) | [Issues](https://github.com/andreisugu/vanilla-webmap/issues) | [License](LICENSE)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.21%2B%20%7C%2026.2%20%7C%2026.3-brightgreen.svg)](https://www.curseforge.com/minecraft/mc-mods/vanillawebmap)
+[![Fabric Mod](https://img.shields.io/badge/Mod%20Loader-Fabric-blue.svg)](https://fabricmc.net/)
+[![Build Status](https://github.com/andreisugu/vanilla-webmap/actions/workflows/release.yml/badge.svg)](https://github.com/andreisugu/vanilla-webmap/actions/workflows/release.yml)
+[![CurseForge](https://img.shields.io/badge/CurseForge-VanillaWebMap-orange.svg)](https://www.curseforge.com/minecraft/mc-mods/vanillawebmap)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Java](https://img.shields.io/badge/Java-21%2B%20%7C%2025-red.svg)](https://adoptium.net/)
+
+[CurseForge](https://www.curseforge.com/minecraft/mc-mods/vanillawebmap) | [GitHub](https://github.com/andreisugu/vanilla-webmap) | [Issues](https://github.com/andreisugu/vanilla-webmap/issues) | [License](LICENSE)
 
 A lightweight, zero-lag 2D web map for Fabric Minecraft servers with live player tracking.
 
@@ -36,7 +43,7 @@ This mod is purely server-side. Players joining your server do not need to insta
 
 ## Installation
 
-1. Download `vanilla-webmap-1.0.0.jar` from [Releases](https://github.com/andreisugu/vanilla-webmap/releases) or [Modrinth](https://modrinth.com/mod/vanilla-webmap).
+1. Download `vanilla-webmap-1.0.0.jar` from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/vanillawebmap) or [GitHub Releases](https://github.com/andreisugu/vanilla-webmap/releases).
 2. Drop the jar into your server's `mods/` directory.
 3. Make sure Fabric Loader (0.16+) and Fabric API are installed.
 4. Start your server. The web map will start automatically on port `8105`.
