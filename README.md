@@ -181,7 +181,13 @@ location / {
 
 ### Prerequisites
 * JDK 21 or higher
-* Fabric Loader libraries
+* Fabric Loader & Minecraft 1.21+ server libraries placed in `libs/`
+
+### Quick Build
+```bash
+chmod +x build.sh
+./build.sh
+```
 
 ### Manual Compilation
 ```bash

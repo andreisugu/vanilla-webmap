@@ -82,13 +82,21 @@ public class WebMapCommand {
         int onlinePlayers = source.getServer().getPlayerCount();
         float mspt = source.getServer().getCurrentSmoothedTickTime();
 
+        String webUrl;
+        if (config.headerLinkUrl != null && !config.headerLinkUrl.isBlank()) {
+            webUrl = config.headerLinkUrl;
+        } else {
+            String host = ("0.0.0.0".equals(config.bindAddress) || "::".equals(config.bindAddress)) ? "localhost" : config.bindAddress;
+            webUrl = "http://" + host + ":" + config.httpPort + "/";
+        }
+
         source.sendSuccess(() -> Component.literal(
                 "§6=== §eVanillaWebMap Status §6===\n" +
                 "§7• §fHTTP Server: §a" + config.bindAddress + ":" + config.httpPort + " §7(Online)\n" +
                 "§7• §fOnline Players Tracked: §e" + onlinePlayers + "\n" +
                 "§7• §fExplored Tiles: §a" + overworldTiles + " §7(Overworld) | §c" + netherTiles + " §7(Nether) | §d" + endTiles + " §7(End)\n" +
                 "§7• §fServer MSPT: §e" + String.format("%.1f", mspt) + "ms\n" +
-                "§7• §fWeb URL: §dhttps://map.192015145.xyz/survival/"), false);
+                "§7• §fWeb URL: §d" + webUrl), false);
     }
 
     private static int executeRender(CommandSourceStack source, int radius) {

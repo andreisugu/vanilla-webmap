@@ -1,6 +1,18 @@
+# Compiled binaries & build artifacts
 bin/
 *.class
+*.jar
+libs/
+
+# Cache & logs
 *.log
-world_webmap_cache/
-.DS_Store
 *.tmp
+world_webmap_cache/
+webmap_cache/
+
+# OS & Editor files
+.DS_Store
+.idea/
+*.iml
+.vscode/
+.settings/
