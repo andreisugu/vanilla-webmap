@@ -16,9 +16,17 @@ fi
 rm -rf bin
 mkdir -p bin
 
-# Compile Java sources
-echo "📦 Compiling Java sources..."
-javac -cp "libs/server-26.2.jar:libs/fabric-loader-0.19.3.jar:libs/fabric-modules/*:libs/mc-libs/*" \
+SERVER_JAR=$(ls libs/server-*.jar 2>/dev/null | head -n 1 || echo "")
+LOADER_JAR=$(ls libs/fabric-loader-*.jar 2>/dev/null | head -n 1 || echo "")
+
+if [ -z "$SERVER_JAR" ] || [ -z "$LOADER_JAR" ]; then
+    echo "❌ Error: Could not find server-*.jar or fabric-loader-*.jar in libs/."
+    echo "💡 Run ./scripts/setup-deps.sh to download dependencies."
+    exit 1
+fi
+
+echo "📦 Compiling Java sources with ${SERVER_JAR}..."
+javac -cp "${SERVER_JAR}:${LOADER_JAR}:libs/fabric-modules/*:libs/mc-libs/*" \
       -d bin src/main/java/xyz/chaonius/webmap/*.java
 
 # Copy mod metadata and assets
