@@ -1,125 +1,69 @@
-<div align="center">
+# VanillaWebMap
 
-# 📜 VanillaWebMap
+[Modrinth](https://modrinth.com/mod/vanilla-webmap) | [GitHub](https://github.com/andreisugu/vanilla-webmap) | [Issues](https://github.com/andreisugu/vanilla-webmap/issues) | [License](LICENSE)
 
-**Ultra-Fast, Zero-Lag, 8-Bit Vanilla Minecraft Web Map**  
-*High-performance binary streaming, event-driven chunk capture, and modern HTML5 Canvas visualization.*
+A lightweight, zero-lag 2D web map for Fabric Minecraft servers with live player tracking.
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.21%2B%20%7C%2026.2%20%7C%2026.3-brightgreen.svg)](https://minecraft.net)
-[![Fabric Mod](https://img.shields.io/badge/Mod%20Loader-Fabric-blue.svg)](https://fabricmc.net/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-21%2B%20%7C%2025-red.svg)](https://adoptium.net/)
+## About
 
-[Features](#-key-features) • [Compatibility](#-version-compatibility) • [Architecture](#-architecture--wire-protocol) • [Installation](#-installation) • [Configuration](#%EF%B8%8F-configuration) • [Commands](#-in-game-commands) • [Reverse Proxy](#-reverse-proxy--nginx-setup) • [Building](#-%EF%B8%8F-building-from-source)
+Unlike traditional web map plugins that generate thousands of PNG files on disk or freeze server ticks with heavy raytracing calculations, VanillaWebMap keeps things fast and simple. It captures block map palettes as chunks are naturally loaded and streams compact region tiles directly to an HTML5 canvas in the browser.
 
-</div>
+Because all map rendering happens on the player's browser GPU rather than the server CPU, server tick rates (TPS) remain stable even during rapid chunk generation with pregen mods like Chunky.
 
----
+This mod is purely server-side. Players joining your server do not need to install anything on their client—they just open a web link in their browser.
 
-## 📖 Overview
+## Features
 
-**VanillaWebMap** is a lightweight, server-side Fabric mod that provides a real-time web map for Minecraft servers with **zero game-tick lag**. Unlike traditional web map plugins that generate heavy PNG images or freeze server ticks with massive raytracing routines, VanillaWebMap captures raw 8-bit Minecraft palette data in **0.005 milliseconds** directly upon chunk generation.
+* **Authentic Vanilla Look:** Renders terrain using vanilla Minecraft map colors and palettes.
+* **Low Server Overhead:** Captures block palettes in memory during chunk load events and serves them straight from RAM.
+* **Live Player Tracking:** Shows player positions in real time with direction markers, custom nametags, dimension indicators, and optional health bars.
+* **Follow Player Mode:** Clicking a player in the sidebar automatically locks the camera to follow their movement across dimensions.
+* **Full Multi-Dimension Support:** View the Overworld, The Nether (with cavern roof culling so lava lakes and fortresses are visible), and The End.
+* **4 UI Themes:** Includes Parchment, Slate Dark, AMOLED Black, and Light modes.
+* **Interactive 360° Rotation:** Rotate the map at any angle with `Ctrl + Drag` or right-click drag, complete with a live compass needle.
+* **Chunk Grid Overlay:** Toggle an F3+G style chunk boundary overlay.
+* **Coordinate Search:** Dedicated X and Z input boxes to quickly jump to specific coordinates.
+* **Map Screenshots:** One-click PNG screenshot export directly from the browser interface.
+* **Fully Server-Side:** No client mod required.
 
-Tile data is packed into **512×512 Region Mega-Tiles (256 KB)** and streamed to a high-speed HTML5 Canvas client featuring GPU-accelerated rendering, 4 sleek UI themes, real-time player tracking, coordinate navigation, and interactive 360° map rotation.
+## Compatibility
 
----
-
-## ✨ Key Features
-
-### 🏎️ Performance & Server Health
-* **⚡ 0.005ms Event-Driven Chunk Capture:** Intercepts chunks during natural `CHUNK_LOAD` events while data is hot in CPU cache.
-* **🧠 Zero Server Thread Contention:** Background HTTP threads never touch Minecraft's `ServerLevel` or chunk managers. All active regions are served directly from an in-memory byte buffer in `0.0001ms`.
-* **💾 Async Disk I/O:** Tiles are persisted asynchronously in 256-byte compact binary files (`.vmap`) without blocking the server tick loop.
-* **⚡ Chunky & Pregen Compatible:** Seamlessly captures thousands of chunks generated per second during pregeneration with 20.0 TPS locked.
-
-### 🌐 High-Speed Mega-Tile Region Streaming
-* **📦 99.8% Network Request Reduction:** Groups 1,024 chunks into 512×512 block region mega-tiles, reducing browser HTTP calls from thousands down to 1–4 requests per screen view.
-* **🔄 Live Exploration Hot-Reloading:** Versioned region headers detect newly explored chunks in real-time, hot-swapping updated tiles with zero flicker.
-* **🧩 Anti-Aliasing Seam Eliminator:** Dynamic screen-space overlap calculations prevent 1-pixel hairline cracks at any zoom level (0.1x to 8.0x).
-
-### 🎨 Modern Web Interface & Tools
-* **🎭 4 Built-In Themes:** `📜 Parchment` (Classic RPG), `🌑 Slate Dark`, `⬛ AMOLED Pure Black`, and `☀️ Light` with persistent local storage.
-* **🧭 360° Interactive Rotation:** Hold `Ctrl + Drag` (or right-click drag) to rotate the map in full 3D space with an interactive magnetic compass needle.
-* **📍 Dual X/Z Coordinate Search:** Jump instantly to any coordinates using dedicated X and Z input boxes.
-* **📐 Minecraft F3+G Chunk Grid:** High-contrast golden chunk boundary overlay visible from panoramic zoom out to block-level zoom in.
-* **👥 Live Player Tracking:** Crisp screen-space heading markers and auto-sizing nametag pills with health & position telemetry.
-* **📸 1-Click PNG Screenshot:** Export clean high-resolution map screenshots with camera flash visual effects.
-* **📱 Responsive & Fullscreen:** Seamless transition between bordered frame mode and full browser edge-to-edge view.
-
----
-
-## 🎮 Version Compatibility
-
-VanillaWebMap is architected with **zero Mixins** and a dedicated background HTTP streaming server, ensuring high stability and forward compatibility across Minecraft releases:
-
-| Minecraft Version | Fabric Loader | Fabric API | Java Runtime | Support Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **26.3** *(Latest)* | `0.19.5+` | `0.161.0+` | Java 25 | 🟢 Fully Tested & Verified |
-| **26.2** | `0.19.3+` | `0.158.0+` | Java 25 | 🟢 Production Verified |
-| **1.21.x** | `0.16.0+` | `0.100.0+` | Java 21 | 🟢 Compatible |
-
----
-
-## 🏛️ Architecture & Wire Protocol
-
-```
-+-----------------------------------------------------------------------+
-|                            MINECRAFT SERVER                           |
-|                                                                       |
-|  [Chunk Load Event] ---> [Palette Mapper (0.005ms)]                   |
-|                                    |                                  |
-|                                    v                                  |
-|            +-----------------------+-----------------------+          |
-|            |                                               |          |
-|            v                                               v          |
-|   [Async Disk Writer]                            [RAM Region Buffer]  |
-|   Writes 256B .vmap files                        512x512 byte arrays  |
-|            |                                               |          |
-+------------|-----------------------------------------------|----------+
-             |                                               |
-             |           +-----------------------+           |
-             +---------> | Virtual-Threaded HTTP | <---------+
-                         |      Server (:8105)   |
-                         +-----------------------+
-                                     |
-                                     v
-                       [High-Speed Browser Client]
-                       - ImageBitmap GPU Decoding
-                       - 60 / 144+ FPS Canvas Matrix
-```
-
-### 📡 REST API Endpoints
-
-| Endpoint | Method | Description | Cache Policy |
+| Minecraft | Loader | Status | Notes |
 | :--- | :--- | :--- | :--- |
-| `/api/config` | `GET` | Server title, IP, and display settings | `max-age=300` |
-| `/api/status` | `GET` | Live TPS, online count, time of day, rain status | `max-age=1` |
-| `/api/players` | `GET` | Real-time coordinates, dimension, health, and yaw | `max-age=1` |
-| `/api/regions_index` | `GET` | Map of explored regions and live chunk version numbers | `no-cache` |
-| `/api/region?rx=X&rz=Z&v=V` | `GET` | 256 KB binary stream of 512×512 block region mega-tile | `immutable` |
-| `/api/tile?cx=X&cz=Z` | `GET` | 256-byte binary stream of individual 16×16 chunk | `immutable` |
+| 26.3 | Fabric | Supported | Tested on Fabric Loader 0.19.5+ |
+| 26.2 | Fabric | Supported | Tested on Fabric Loader 0.19.3+ |
+| 1.21.x | Fabric | Supported | Requires Fabric API |
 
----
+## Installation
 
-## 📦 Installation
+1. Download `vanilla-webmap-1.0.0.jar` from [Releases](https://github.com/andreisugu/vanilla-webmap/releases) or [Modrinth](https://modrinth.com/mod/vanilla-webmap).
+2. Drop the jar into your server's `mods/` directory.
+3. Make sure Fabric Loader (0.16+) and Fabric API are installed.
+4. Start your server. The web map will start automatically on port `8105`.
 
-1. Download the latest `vanilla-webmap-1.0.0.jar`.
-2. Place the `.jar` into your Minecraft server's `mods/` folder.
-3. Requires **Fabric Loader 0.16+** on Minecraft **1.21+, 26.2, or 26.3** with Java 21+ (Java 25 for 26.x).
-4. Start the server. The web server will automatically initialize on port `8105`.
+Access the map in your browser at `http://<server-ip>:8105/`.
 
----
+## Commands
 
-## ⚙️ Configuration
+Requires operator permissions (permission level 2+):
 
-The configuration file is located at `config/vanilla-webmap.json`:
+| Command | Description |
+| :--- | :--- |
+| `/webmap status` | Shows HTTP server port, online player count, and cached tile stats. |
+| `/webmap render <radius>` | Force-scans and renders chunks around the player. |
+| `/webmap reload` | Reloads `config/vanilla-webmap.json` without restarting the server. |
+| `/webmap clear` | Clears in-memory and disk tile caches. |
+
+## Configuration
+
+The config file is generated at `config/vanilla-webmap.json`:
 
 ```json
 {
   "version": 1,
   "serverTitle": "My Minecraft Server",
-  "serverIp": "mc.example.com",
-  "headerLinkUrl": "https://example.com",
+  "serverIp": "play.myserver.com",
+  "headerLinkUrl": "https://myserver.com",
   "httpPort": 8105,
   "bindAddress": "0.0.0.0",
   "scanRadius": 8,
@@ -130,52 +74,19 @@ The configuration file is located at `config/vanilla-webmap.json`:
 }
 ```
 
-### Configuration Options
-* **`serverTitle`**: Title displayed in the top HUD and browser tab.
-* **`serverIp`**: Address copied when clicking the server IP badge in the sidebar.
-* **`headerLinkUrl`**: URL opened when clicking the server title.
-* **`httpPort`**: Port for the built-in binary tile HTTP server (Default: `8105`).
-* **`bindAddress`**: Network interface binding (`0.0.0.0` for all interfaces).
-* **`tileCacheDir`**: Directory where `.vmap` chunk cache files are stored.
-* **`showPlayerHealth`**: Exposes player health points on the web map.
-* **`showCoordinates`**: Exposes player world coordinates on the web map.
+* `serverTitle`: Title shown in the browser tab and top header.
+* `serverIp`: IP address copied when clicking the server widget.
+* `headerLinkUrl`: External link opened when clicking the server title.
+* `httpPort`: Port for the built-in HTTP server (Default: `8105`).
+* `bindAddress`: Network interface (`0.0.0.0` for all interfaces).
+* `tileCacheDir`: Directory where `.vmap` tile cache files are saved.
+* `showPlayerHealth`: Toggle player health indicators on the map.
+* `showCoordinates`: Toggle player coordinates on the map.
 
----
+## Reverse Proxy (Nginx)
 
-## 🎮 In-Game Commands
+To run the map under a domain with SSL:
 
-VanillaWebMap provides a command suite under `/webmap` *(Requires Permission Level 2+)*:
-
-| Command | Description |
-| :--- | :--- |
-| `/webmap status` | Displays HTTP server status, cached disk tiles, RAM cache, and active players. |
-| `/webmap render <radius>` | Force-scans and renders a radius of chunks around your current location. |
-| `/webmap clear` | Clears all cached `.vmap` files from RAM and disk. |
-| `/webmap reload` | Reloads `config/vanilla-webmap.json` without restarting the server. |
-
----
-
-## 🌐 Reverse Proxy / Nginx Setup
-
-To expose VanillaWebMap behind Nginx (with SSL / Cloudflare):
-
-### Option A: Subpath Routing (e.g. `https://map.example.com/survival/`)
-```nginx
-location /survival/ {
-    proxy_pass http://127.0.0.1:8105/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    
-    # Enable WebSocket and buffer optimizations
-    proxy_buffering off;
-    proxy_read_timeout 600s;
-}
-```
-
-### Option B: Root Domain (e.g. `https://map.example.com/`)
 ```nginx
 location / {
     proxy_pass http://127.0.0.1:8105;
@@ -187,51 +98,24 @@ location / {
 }
 ```
 
----
-
-## 🛠️ Building from Source
+## Building from Source
 
 ### Prerequisites
 * JDK 21 or higher (Java 25 recommended)
 
 ### Quick Build
 ```bash
-# 1. Download and extract build dependencies (first time only)
+# 1. Download dependencies (first time only)
 chmod +x scripts/setup-deps.sh
 ./scripts/setup-deps.sh
 
-# 2. Compile and package mod JAR
+# 2. Build mod jar
 chmod +x build.sh
 ./build.sh
 ```
 
-### Manual Compilation
-```bash
-# 1. Compile Java sources
-javac -cp "libs/server-26.2.jar:libs/fabric-loader-0.19.3.jar:libs/fabric-modules/*:libs/mc-libs/*" \
-      -d bin src/main/java/xyz/chaonius/webmap/*.java
+Compiled jar will be located at `vanilla-webmap-1.0.0.jar`.
 
-# 2. Bundle web assets and metadata
-cp src/main/resources/fabric.mod.json bin/
-mkdir -p bin/assets/vanilla-webmap/web
-cp src/main/resources/assets/vanilla-webmap/web/index.html bin/assets/vanilla-webmap/web/
+## License
 
-# 3. Create mod jar
-cd bin && jar -cf ../vanilla-webmap-1.0.0.jar *
-```
-
----
-
-## 📄 License
-
-Licensed under the **Apache License, Version 2.0**. See the [LICENSE](LICENSE) file for details.
-
-```
-Copyright 2026 VanillaWebMap Contributors
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-```
+Licensed under the [Apache License, Version 2.0](LICENSE).
